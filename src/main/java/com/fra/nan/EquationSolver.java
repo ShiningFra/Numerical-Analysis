@@ -7,7 +7,10 @@ public class EquationSolver implements Imat {
     @Override
     public double[] resoudreEquation(double a, double b, double c) {
         if (a == 0) {
-            throw new IllegalArgumentException("Ce n'est pas une équation du second degré.");
+            double x = - b / a; 
+            System.out.println("Solution unique : " + x);
+            return new double[]{x};
+            // throw new IllegalArgumentException("Ce n'est pas une équation du second degré.");
         }
         
         double delta = b * b - 4 * a * c;
@@ -15,11 +18,14 @@ public class EquationSolver implements Imat {
         if (delta > 0) {
             double x1 = (-b + Math.sqrt(delta)) / (2 * a);
             double x2 = (-b - Math.sqrt(delta)) / (2 * a);
+            System.out.println("Solutions : " + x1 + " ... " + x2);
             return new double[]{x1, x2};
         } else if (delta == 0) {
             double x = -b / (2 * a);
+            System.out.println("Solution double : " + x);
             return new double[]{x};
         } else {
+            System.out.println("Pas de solution");
             return new double[]{}; // Pas de solution réelle
         }
     }
