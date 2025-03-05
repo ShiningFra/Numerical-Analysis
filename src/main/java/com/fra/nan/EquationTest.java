@@ -27,9 +27,11 @@ public class EquationTest {
 
                 // Résoudre l'équation
                 try {
+                    System.out.println("Début d'un cas de test");
                     double[] solutions = solver.resoudreEquation(a, b, c);
 
                     // Vérification des solutions
+                    
                     for (double x : solutions) {
                         double result = a * x * x + b * x + c;
                         System.out.println("Résultat du test sur " + x + ": " + result);
@@ -40,6 +42,7 @@ public class EquationTest {
                     if (solutions.length == 0) {
                         Assert.assertTrue("Le discriminant doit être négatif pour " + line, b * b - 4 * a * c < 0);
                     }
+                    System.out.println("Fin d'un test");
                 } catch (IllegalArgumentException e) {
                     System.out.println(e);
                 }
