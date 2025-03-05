@@ -7,7 +7,7 @@ public class EquationSolver implements Imat {
     @Override
     public double[] resoudreEquation(double a, double b, double c) {
         if (a == 0) {
-            double x = - b / a; 
+            double x = - c / b; 
             System.out.println("Solution unique : " + x);
             return new double[]{x};
             // throw new IllegalArgumentException("Ce n'est pas une équation du second degré.");
