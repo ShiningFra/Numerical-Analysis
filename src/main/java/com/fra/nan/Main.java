@@ -4,7 +4,7 @@ import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
+        /*Scanner scanner = new Scanner(System.in);
         
         System.out.print("Entrez le coefficient a : ");
         double a = scanner.nextDouble();
@@ -24,6 +24,7 @@ public class Main {
             System.out.println("Pas de solution réelle.");
         }
         
-        scanner.close();
+        scanner.close();*/
+        EquationTest.testResoudreEquation();
     }
 }
