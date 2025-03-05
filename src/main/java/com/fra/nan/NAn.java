@@ -11,6 +11,6 @@ package com.fra.nan;
 public class NAn {
 
     public static void main(String[] args) {
-        System.out.println("Hello World!");
+        EquationTest.testResoudreEquation();
     }
 }
