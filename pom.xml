@@ -14,6 +14,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+    <groupId>org.jfree</groupId>
+    <artifactId>jfreechart</artifactId>
+    <version>1.5.5</version> <!-- Vérifiez la dernière version -->
+            <type>jar</type>
+        </dependency>
+        <dependency>
     <groupId>org.junit.jupiter</groupId>
     <artifactId>junit-jupiter-engine</artifactId>
     <version>5.10.5</version>
