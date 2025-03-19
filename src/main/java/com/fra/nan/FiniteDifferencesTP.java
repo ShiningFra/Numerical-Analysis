@@ -112,7 +112,7 @@ public class FiniteDifferencesTP {
         double prevError = -1;
         System.out.println("Convergence pour u(x) = " + uExact.getDescription());
         for (int N : meshSizes) {
-            double h = 1.0 / (N + 1);
+            double h = 1.0 / (N);
             double[] x = new double[N];
             for (int i = 0; i < N; i++) {
                 x[i] = (i + 1) * h;
