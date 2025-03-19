@@ -59,6 +59,17 @@ public class FiniteDifferencesTP {
             }
         }
         // Résolution par élimination de Gauss
+        /* System.out.println("Matrice A :");
+        for (int i=0;i<N;i++){
+            for (int j=0;j<N;j++){
+            System.out.print(A[i][j] + "   ");
+        }
+            System.out.println("");
+        }
+        System.out.println("Vecteur b :");
+        for (int j=0;j<N;j++){
+            System.out.print(b[j] + "   ");
+        }*/
         return gaussElimination(A, b);
     }
 
@@ -172,32 +183,32 @@ public class FiniteDifferencesTP {
                 return x;
             }
             public String getDescription() {
-                return "x^3";
+                return "x";
             }
         };
         Function uSecondLinear = new Function() {
             public double eval(double x) {
-                return 0;
+                return 0.0;
             }
             public String getDescription() {
-                return "u''(x) de x^3";
+                return "u''(x) de x";
             }
         };
         
         Function uExactSquare = new Function() {
             public double eval(double x) {
-                return x * x * x;
+                return x * x;
             }
             public String getDescription() {
-                return "x^3";
+                return "x^2";
             }
         };
         Function uSecondSquare = new Function() {
             public double eval(double x) {
-                return 6 * x;
+                return 2.0;
             }
             public String getDescription() {
-                return "u''(x) de x^3";
+                return "u''(x) de x^2";
             }
         };
 
