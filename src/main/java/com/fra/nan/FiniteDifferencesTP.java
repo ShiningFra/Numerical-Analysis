@@ -166,9 +166,49 @@ public class FiniteDifferencesTP {
                 return "u''(x) de x^3";
             }
         };
+        
+        Function uExactLinear = new Function() {
+            public double eval(double x) {
+                return x;
+            }
+            public String getDescription() {
+                return "x^3";
+            }
+        };
+        Function uSecondLinear = new Function() {
+            public double eval(double x) {
+                return 0;
+            }
+            public String getDescription() {
+                return "u''(x) de x^3";
+            }
+        };
+        
+        Function uExactSquare = new Function() {
+            public double eval(double x) {
+                return x * x * x;
+            }
+            public String getDescription() {
+                return "x^3";
+            }
+        };
+        Function uSecondSquare = new Function() {
+            public double eval(double x) {
+                return 6 * x;
+            }
+            public String getDescription() {
+                return "u''(x) de x^3";
+            }
+        };
 
         // Calcul de l'ordre de convergence pour les deux cas
+        System.out.println("u(x) = sin(pi*x)");
         computeConvergence(meshSizes, uExactSin, uSecondSin);
+        System.out.println("u(x) = x");
+        computeConvergence(meshSizes, uExactLinear, uSecondLinear);
+        System.out.println("u(x) = x*x");
+        computeConvergence(meshSizes, uExactSquare, uSecondSquare);
+        System.out.println("u(x) = x*x*x");
         computeConvergence(meshSizes, uExactCubic, uSecondCubic);
 
         // Représentation graphique (pour le cas sin(pi*x) sur le maillage le plus fin)
