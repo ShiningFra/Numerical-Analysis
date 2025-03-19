@@ -194,16 +194,48 @@ public class FiniteDifferencesTP {
         // Affichage des courbes (solution et erreur)
         Plotter.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour sin(pi*x)",
                 "x", "u(x)");
-        Plotter.plotSingleSeries(x, uNumVals, "Solution approchée pour sin(pi*x)",
+        /* Plotter.plotSingleSeries(x, uNumVals, "Solution approchée pour sin(pi*x)",
                 "x", "u(x)");
-        Plotter.plotSingleSeries(x, uExactVals, "Solution exacte pour sin(pi*x)",
-                "x", "u(x)");
+         Plotter.plotSingleSeries(x, uExactVals, "Solution exacte pour sin(pi*x)",
+                "x", "u(x)"); */
         // Courbe d'erreur
         double[] error = new double[Ntot];
         for (int i = 0; i < Ntot; i++) {
             error[i] = Math.abs(uExactVals[i] - uNumVals[i]);
         }
-        Plotter.plotSingleSeries(x, error, "Erreur |u_exact - u_num|", "x", "Erreur");
+        Plotter.plotSingleSeries(x, error, "Erreur |u_exact - u_num| : sin(pi*x)", "x", "Erreur");
+        
+        // Calcul des points (avec conditions aux limites)
+        for (int i = 0; i < Ntot; i++) {
+            x[i] = i * h;
+            uExactVals[i] = uExactSin.eval(x[i]);
+        }
+        // Solution numérique (pour les points intérieurs)
+        
+        for (int i = 0; i < Ntot; i++) {
+            x[i] = i * h;
+            uExactVals[i] = uExactCubic.eval(x[i]);
+        }
+        
+        uInterior = solveFD(N, uExactCubic.eval(0), uExactCubic.eval(1), uSecondSin);
+        uNumVals[0] = uExactCubic.eval(0);
+        uNumVals[Ntot - 1] = uExactCubic.eval(1);
+        for (int i = 0; i < N; i++) {
+            uNumVals[i + 1] = uInterior[i];
+        }
+        // Affichage des courbes (solution et erreur)
+        Plotter.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour x*x*x",
+                "x", "u(x)");
+        /* Plotter.plotSingleSeries(x, uNumVals, "Solution approchée pour x*x*x",
+                "x", "u(x)");
+        Plotter.plotSingleSeries(x, uExactVals, "Solution exacte pour x*x*x",
+                "x", "u(x)"); */
+        // Courbe d'erreur
+        error = new double[Ntot];
+        for (int i = 0; i < Ntot; i++) {
+            error[i] = Math.abs(uExactVals[i] - uNumVals[i]);
+        }
+        Plotter.plotSingleSeries(x, error, "Erreur |u_exact - u_num| : x*x*x", "x", "Erreur");
     }
 }
 
