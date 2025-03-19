@@ -194,6 +194,10 @@ public class FiniteDifferencesTP {
         // Affichage des courbes (solution et erreur)
         Plotter.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour sin(pi*x)",
                 "x", "u(x)");
+        Plotter.plotSingleSeries(x, uNumVals, "Solution approchée pour sin(pi*x)",
+                "x", "u(x)");
+        Plotter.plotSingleSeries(x, uExactVals, "Solution exacte pour sin(pi*x)",
+                "x", "u(x)");
         // Courbe d'erreur
         double[] error = new double[Ntot];
         for (int i = 0; i < Ntot; i++) {
