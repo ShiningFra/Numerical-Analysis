@@ -34,7 +34,7 @@ public class FiniteDifferencesTP {
      * @return solution approximative aux points intérieurs (u1,...,u_N)
      */
     public static double[] solveFD(int N, double u0, double u1, Function secondDeriv) {
-        double h = 1.0 / (N + 1);
+        double h = 1.0 / (N);
         double[] x = new double[N];
         double[] b = new double[N];
         double[][] A = new double[N][N];
