@@ -31,7 +31,7 @@ public class FiniteDifferencesTP {
      * @param secondDeriv fonction donnant u''(x)
      * @return solution approximative aux points intérieurs (u1,...,u_N)
      */
-    public static double[] solveFD(int N, double u0, double u1, Function secondDeriv) {
+    public static double[] solveFD(int N, double u0, double u1, Functionn secondDeriv) {
         double h = 1.0 / N;
         double[] x = new double[N];
         double[] b = new double[N];
@@ -95,7 +95,7 @@ public class FiniteDifferencesTP {
      * @param uExact fonction de la solution exacte u(x)
      * @param uSecond fonction donnant u''(x)
      */
-    public static void computeConvergence(int[] meshSizes, Function uExact, Function uSecond) {
+    public static void computeConvergence(int[] meshSizes, Functionn uExact, Functionn uSecond) {
         double prevError = -1;
         System.out.println("Convergence pour u(x) = " + uExact.getDescription());
         for (int N : meshSizes) {
@@ -129,7 +129,7 @@ public class FiniteDifferencesTP {
 
         // Cas 1 : u(x) = sin(pi*x)
         // u(0) = 0, u(1) = sin(pi) = 0, et u''(x) = -pi^2 sin(pi*x)
-        Function uExactSin = new Function() {
+        Functionn uExactSin = new Functionn() {
             public double eval(double x) {
                 return Math.sin(Math.PI * x);
             }
@@ -137,7 +137,7 @@ public class FiniteDifferencesTP {
                 return "sin(pi*x)";
             }
         };
-        Function uSecondSin = new Function() {
+        Functionn uSecondSin = new Functionn() {
             public double eval(double x) {
                 return -Math.PI * Math.PI * Math.sin(Math.PI * x);
             }
@@ -148,7 +148,7 @@ public class FiniteDifferencesTP {
 
         // Cas 2 : u(x) = x^3
         // u(0) = 0, u(1) = 1, et u''(x) = 6x
-        Function uExactCubic = new Function() {
+        Functionn uExactCubic = new Functionn() {
             public double eval(double x) {
                 return x * x * x;
             }
@@ -156,7 +156,7 @@ public class FiniteDifferencesTP {
                 return "x^3";
             }
         };
-        Function uSecondCubic = new Function() {
+        Functionn uSecondCubic = new Functionn() {
             public double eval(double x) {
                 return 6 * x;
             }
@@ -192,13 +192,13 @@ public class FiniteDifferencesTP {
             uNumVals[i + 1] = uInterior[i];
         }
         // Affichage des courbes et de l'erreur pour sin(pi*x)
-        Plotter.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour sin(pi*x)",
+        Plott.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour sin(pi*x)",
                 "x", "u(x)");
         double[] error = new double[Ntot];
         for (int i = 0; i < Ntot; i++) {
             error[i] = Math.abs(uExactVals[i] - uNumVals[i]);
         }
-        Plotter.plotSingleSeries(x, error, "Erreur |u_exact - u_num| : sin(pi*x)", "x", "Erreur");
+        Plott.plotSingleSeries(x, error, "Erreur |u_exact - u_num| : sin(pi*x)", "x", "Erreur");
 
         // Représentation graphique pour le cas x^3
         for (int i = 0; i < Ntot; i++) {
@@ -211,12 +211,12 @@ public class FiniteDifferencesTP {
         for (int i = 0; i < N; i++) {
             uNumVals[i + 1] = uInterior[i];
         }
-        Plotter.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour x^3",
+        Plott.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour x^3",
                 "x", "u(x)");
         for (int i = 0; i < Ntot; i++) {
             error[i] = Math.abs(uExactVals[i] - uNumVals[i]);
         }
-        Plotter.plotSingleSeries(x, error, "Erreur |u_exact - u_num| : x^3", "x", "Erreur");
+        Plott.plotSingleSeries(x, error, "Erreur |u_exact - u_num| : x^3", "x", "Erreur");
     }
 }
 
@@ -233,7 +233,7 @@ interface Function {
 /**
  * Classe utilitaire pour afficher des graphiques à l'aide de JFreeChart.
  */
-class Plotter {
+class Plott {
     /**
      * Affiche deux séries (par exemple, la solution exacte et la solution approchée) dans un même graphique.
      * La légende identifie chacune des courbes.

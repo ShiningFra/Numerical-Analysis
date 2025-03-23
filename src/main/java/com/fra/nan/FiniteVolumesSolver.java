@@ -41,7 +41,7 @@ public class FiniteVolumesSolver {
      * @param f fonction f(x) (pour les valeurs au centre des cellules)
      * @return solution approchée aux centres de cellules, rangée de u1,...,u_N
      */
-    public static double[] solveFV(int N, double u0, double u1, Function f) {
+    public static double[] solveFV(int N, double u0, double u1, Functionn f) {
         double h = 1.0 / N;
         double[] x = new double[N]; // centres des cellules
         double[] b = new double[N];
@@ -53,7 +53,7 @@ public class FiniteVolumesSolver {
         // Avec u_0 = u(0) et u_{N+1} = u(1) connus.
         for (int i = 0; i < N; i++) {
             x[i] = (i + 0.5) * h; // centre de la cellule
-            b[i] = f.eval(x[i]) * h * h;
+            b[i] = - f.eval(x[i]) * h * h;
         }
         // Prise en compte des conditions limites
         b[0]    += u0;
@@ -128,7 +128,7 @@ public class FiniteVolumesSolver {
      * @param u1 condition à x=1
      * @param meshSizes tableau des nombres de mailles à tester
      */
-    public static void runTests(String label, Function uExact, Function uSecond,
+    public static void runTests(String label, Functionn uExact, Functionn uSecond,
                                 double u0, double u1, int[] meshSizes) {
         double prevError = -1;
         System.out.println("Test pour u(x) = " + uExact.getDescription());
@@ -144,7 +144,7 @@ public class FiniteVolumesSolver {
                 uEx[i] = uExact.eval(x[i]);
             }
             // f(x) = -u''(x)
-            Function f = xVal -> -uSecond.eval(xVal);
+            Functionn f = xVal -> -uSecond.eval(xVal);
             double[] uApp = solveFV(N, u0, u1, f);
             double error = computeMaxError(uEx, uApp);
             System.out.printf("N = %d, h = %.5e, erreur = %.5e", N, h, error);
@@ -172,7 +172,7 @@ public class FiniteVolumesSolver {
 
         // Cas 1 : u(x) = sin(pi*x)
         // u(0) = 0, u(1) = sin(pi)=0, et u''(x) = -pi^2 sin(pi*x)
-        Function uExactSin = new Function() {
+        Functionn uExactSin = new Functionn() {
             public double eval(double x) {
                 return Math.sin(Math.PI * x);
             }
@@ -180,7 +180,7 @@ public class FiniteVolumesSolver {
                 return "sin(pi*x)";
             }
         };
-        Function uSecondSin = new Function() {
+        Functionn uSecondSin = new Functionn() {
             public double eval(double x) {
                 return -Math.PI * Math.PI * Math.sin(Math.PI * x);
             }
@@ -191,7 +191,7 @@ public class FiniteVolumesSolver {
         
         // Cas 2 : u(x) = x^3
         // u(0)=0, u(1)=1, et u''(x)=6x
-        Function uExactCubic = new Function() {
+        Functionn uExactCubic = new Functionn() {
             public double eval(double x) {
                 return x * x * x;
             }
@@ -199,7 +199,7 @@ public class FiniteVolumesSolver {
                 return "x^3";
             }
         };
-        Function uSecondCubic = new Function() {
+        Functionn uSecondCubic = new Functionn() {
             public double eval(double x) {
                 return 6 * x;
             }
@@ -259,7 +259,7 @@ public class FiniteVolumesSolver {
 /**
  * Interface pour définir une fonction réelle.
  */
-interface Function {
+interface Functionn {
     double eval(double x);
     default String getDescription() {
         return "";
