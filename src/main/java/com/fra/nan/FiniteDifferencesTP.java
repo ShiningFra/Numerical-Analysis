@@ -4,10 +4,6 @@
  */
 package com.fra.nan;
 
-/**
- *
- * @author Roddier
- */
 import java.awt.BorderLayout;
 import javax.swing.JFrame;
 import org.jfree.chart.ChartFactory;
@@ -20,21 +16,23 @@ import org.jfree.data.xy.XYSeriesCollection;
 /**
  * Programme complet pour résoudre -u'' = f sur (0,1) par différences finies,
  * calculer la vitesse de convergence en norme L∞ et afficher les graphiques.
+ * Le maillage uniforme est obtenu avec h = 1/N (N mailles).
  */
 public class FiniteDifferencesTP {
 
     /**
      * Résout le système discret obtenu avec la méthode des différences finies.
      * Le système est: u_{i-1} - 2u_i + u_{i+1} = h^2 * u''(x_i) pour i = 1,...,N.
+     * On suppose ici que le maillage est uniforme avec h = 1/N (donc, N mailles).
      *
-     * @param N nombre de points intérieurs (maillage de taille N+2)
+     * @param N nombre de mailles (donc de points intérieurs)
      * @param u0 condition limite en 0
      * @param u1 condition limite en 1
      * @param secondDeriv fonction donnant u''(x)
      * @return solution approximative aux points intérieurs (u1,...,u_N)
      */
     public static double[] solveFD(int N, double u0, double u1, Function secondDeriv) {
-        double h = 1.0 / (N);
+        double h = 1.0 / N;
         double[] x = new double[N];
         double[] b = new double[N];
         double[][] A = new double[N][N];
@@ -44,9 +42,9 @@ public class FiniteDifferencesTP {
             x[i] = (i + 1) * h;
             b[i] = secondDeriv.eval(x[i]) * h * h;
         }
-        // Prise en compte des conditions limites
-        b[0]    += u0;  // pour i = 1, la contribution de u(0)
-        b[N - 1] += u1;  // pour i = N, la contribution de u(1)
+        // Prise en compte des conditions aux limites
+        b[0]    += u0;  // contribution de u(0)
+        b[N - 1] += u1;  // contribution de u(1)
 
         // Construction de la matrice tridiagonale
         for (int i = 0; i < N; i++) {
@@ -59,17 +57,6 @@ public class FiniteDifferencesTP {
             }
         }
         // Résolution par élimination de Gauss
-        /* System.out.println("Matrice A :");
-        for (int i=0;i<N;i++){
-            for (int j=0;j<N;j++){
-            System.out.print(A[i][j] + "   ");
-        }
-            System.out.println("");
-        }
-        System.out.println("Vecteur b :");
-        for (int j=0;j<N;j++){
-            System.out.print(b[j] + "   ");
-        }*/
         return gaussElimination(A, b);
     }
 
@@ -104,7 +91,7 @@ public class FiniteDifferencesTP {
      * Calcule et affiche l'erreur en norme L∞ pour différents maillages
      * et estime l'ordre de convergence.
      *
-     * @param meshSizes tableau des tailles de maillage (nombre de points intérieurs)
+     * @param meshSizes tableau des tailles de maillage (nombre de mailles)
      * @param uExact fonction de la solution exacte u(x)
      * @param uSecond fonction donnant u''(x)
      */
@@ -112,7 +99,7 @@ public class FiniteDifferencesTP {
         double prevError = -1;
         System.out.println("Convergence pour u(x) = " + uExact.getDescription());
         for (int N : meshSizes) {
-            double h = 1.0 / (N);
+            double h = 1.0 / N;
             double[] x = new double[N];
             for (int i = 0; i < N; i++) {
                 x[i] = (i + 1) * h;
@@ -177,116 +164,59 @@ public class FiniteDifferencesTP {
                 return "u''(x) de x^3";
             }
         };
-        
-        Function uExactLinear = new Function() {
-            public double eval(double x) {
-                return x;
-            }
-            public String getDescription() {
-                return "x";
-            }
-        };
-        Function uSecondLinear = new Function() {
-            public double eval(double x) {
-                return 0.0;
-            }
-            public String getDescription() {
-                return "u''(x) de x";
-            }
-        };
-        
-        Function uExactSquare = new Function() {
-            public double eval(double x) {
-                return x * x;
-            }
-            public String getDescription() {
-                return "x^2";
-            }
-        };
-        Function uSecondSquare = new Function() {
-            public double eval(double x) {
-                return 2.0;
-            }
-            public String getDescription() {
-                return "u''(x) de x^2";
-            }
-        };
 
         // Calcul de l'ordre de convergence pour les deux cas
         System.out.println("u(x) = sin(pi*x)");
         computeConvergence(meshSizes, uExactSin, uSecondSin);
-        System.out.println("u(x) = x");
-        computeConvergence(meshSizes, uExactLinear, uSecondLinear);
-        System.out.println("u(x) = x*x");
-        computeConvergence(meshSizes, uExactSquare, uSecondSquare);
-        System.out.println("u(x) = x*x*x");
+        System.out.println("u(x) = x^3");
         computeConvergence(meshSizes, uExactCubic, uSecondCubic);
 
-        // Représentation graphique (pour le cas sin(pi*x) sur le maillage le plus fin)
+        // Représentation graphique (pour sin(pi*x) sur le maillage le plus fin)
         int N = 320;
-        double h = 1.0 / (N + 1);
+        double h = 1.0 / N;
         int Ntot = N + 2; // incluant les bornes
         double[] x = new double[Ntot];
         double[] uExactVals = new double[Ntot];
         double[] uNumVals = new double[Ntot];
 
-        // Calcul des points (avec conditions aux limites)
+        // Calcul des points pour sin(pi*x)
         for (int i = 0; i < Ntot; i++) {
             x[i] = i * h;
             uExactVals[i] = uExactSin.eval(x[i]);
         }
-        // Solution numérique (pour les points intérieurs)
+        // Solution numérique pour sin(pi*x)
         double[] uInterior = solveFD(N, uExactSin.eval(0), uExactSin.eval(1), uSecondSin);
         uNumVals[0] = uExactSin.eval(0);
         uNumVals[Ntot - 1] = uExactSin.eval(1);
         for (int i = 0; i < N; i++) {
             uNumVals[i + 1] = uInterior[i];
         }
-        // Affichage des courbes (solution et erreur)
+        // Affichage des courbes et de l'erreur pour sin(pi*x)
         Plotter.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour sin(pi*x)",
                 "x", "u(x)");
-        /* Plotter.plotSingleSeries(x, uNumVals, "Solution approchée pour sin(pi*x)",
-                "x", "u(x)");
-         Plotter.plotSingleSeries(x, uExactVals, "Solution exacte pour sin(pi*x)",
-                "x", "u(x)"); */
-        // Courbe d'erreur
         double[] error = new double[Ntot];
         for (int i = 0; i < Ntot; i++) {
             error[i] = Math.abs(uExactVals[i] - uNumVals[i]);
         }
         Plotter.plotSingleSeries(x, error, "Erreur |u_exact - u_num| : sin(pi*x)", "x", "Erreur");
-        
-        // Calcul des points (avec conditions aux limites)
-        for (int i = 0; i < Ntot; i++) {
-            x[i] = i * h;
-            uExactVals[i] = uExactSin.eval(x[i]);
-        }
-        // Solution numérique (pour les points intérieurs)
-        
+
+        // Représentation graphique pour le cas x^3
         for (int i = 0; i < Ntot; i++) {
             x[i] = i * h;
             uExactVals[i] = uExactCubic.eval(x[i]);
         }
-        
-        uInterior = solveFD(N, uExactCubic.eval(0), uExactCubic.eval(1), uSecondSin);
+        uInterior = solveFD(N, uExactCubic.eval(0), uExactCubic.eval(1), uSecondCubic);
         uNumVals[0] = uExactCubic.eval(0);
         uNumVals[Ntot - 1] = uExactCubic.eval(1);
         for (int i = 0; i < N; i++) {
             uNumVals[i + 1] = uInterior[i];
         }
-        // Affichage des courbes (solution et erreur)
-        Plotter.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour x*x*x",
+        Plotter.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour x^3",
                 "x", "u(x)");
-        /* Plotter.plotSingleSeries(x, uNumVals, "Solution approchée pour x*x*x",
-                "x", "u(x)");
-        Plotter.plotSingleSeries(x, uExactVals, "Solution exacte pour x*x*x",
-                "x", "u(x)"); */
-        // Courbe d'erreur
-        error = new double[Ntot];
         for (int i = 0; i < Ntot; i++) {
             error[i] = Math.abs(uExactVals[i] - uNumVals[i]);
         }
-        Plotter.plotSingleSeries(x, error, "Erreur |u_exact - u_num| : x*x*x", "x", "Erreur");
+        Plotter.plotSingleSeries(x, error, "Erreur |u_exact - u_num| : x^3", "x", "Erreur");
     }
 }
 
@@ -305,7 +235,8 @@ interface Function {
  */
 class Plotter {
     /**
-     * Affiche deux séries (par exemple, la solution exacte et l'approchée) dans un même graphique.
+     * Affiche deux séries (par exemple, la solution exacte et la solution approchée) dans un même graphique.
+     * La légende identifie chacune des courbes.
      */
     public static void plotTwoSeries(double[] x, double[] series1, double[] series2,
                                      String title, String xLabel, String yLabel) {
@@ -324,7 +255,8 @@ class Plotter {
     }
 
     /**
-     * Affiche une seule série (par exemple, la courbe d'erreur).
+     * Affiche une seule série (par exemple, la courbe d'erreur) dans un graphique.
+     * La légende permet d'identifier la série.
      */
     public static void plotSingleSeries(double[] x, double[] series, String title,
                                         String xLabel, String yLabel) {
@@ -341,14 +273,14 @@ class Plotter {
 
     /**
      * Affiche le graphique dans une fenêtre.
+     * La taille de la fenêtre est fixée à 600x400 pour ne pas occuper trop d'espace.
      */
     private static void showChart(JFreeChart chart, String title) {
         JFrame frame = new JFrame(title);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         ChartPanel chartPanel = new ChartPanel(chart);
         frame.getContentPane().add(chartPanel, BorderLayout.CENTER);
-        frame.pack();
+        frame.setSize(600, 400);
         frame.setVisible(true);
     }
 }
-
