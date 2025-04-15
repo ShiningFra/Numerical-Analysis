@@ -150,25 +150,25 @@ public class FiniteDifferencesTP {
         // u(0) = 0, u(1) = 1, et u''(x) = 6x
         Functionn uExactCubic = new Functionn() {
             public double eval(double x) {
-                return x * x * x;
+                return x * x;
             }
             public String getDescription() {
-                return "x^3";
+                return "x^2";
             }
         };
         Functionn uSecondCubic = new Functionn() {
             public double eval(double x) {
-                return 6 * x;
+                return 2;
             }
             public String getDescription() {
-                return "u''(x) de x^3";
+                return "u''(x) de x^2";
             }
         };
 
         // Calcul de l'ordre de convergence pour les deux cas
         System.out.println("u(x) = sin(pi*x)");
         computeConvergence(meshSizes, uExactSin, uSecondSin);
-        System.out.println("u(x) = x^3");
+        System.out.println("u(x) = x^2");
         computeConvergence(meshSizes, uExactCubic, uSecondCubic);
 
         // Représentation graphique (pour sin(pi*x) sur le maillage le plus fin)
@@ -211,12 +211,12 @@ public class FiniteDifferencesTP {
         for (int i = 0; i < N; i++) {
             uNumVals[i + 1] = uInterior[i];
         }
-        Plott.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour x^3",
+        Plott.plotTwoSeries(x, uExactVals, uNumVals, "Solution exacte et approchée pour x^2",
                 "x", "u(x)");
         for (int i = 0; i < Ntot; i++) {
             error[i] = Math.abs(uExactVals[i] - uNumVals[i]);
         }
-        Plott.plotSingleSeries(x, error, "Erreur |u_exact - u_num| : x^3", "x", "Erreur");
+        Plott.plotSingleSeries(x, error, "Erreur |u_exact - u_num| : x^2", "x", "Erreur");
     }
 }
 
