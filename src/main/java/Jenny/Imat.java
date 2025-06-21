@@ -1,4 +1,4 @@
-package com.fra.nan;
+package Jenny;
 
 // Définition de l'interface
 public interface Imat {

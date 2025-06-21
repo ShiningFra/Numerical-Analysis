@@ -1,4 +1,4 @@
-package com.fra.nan;
+package Jenny;
 
 import org.junit.Assert;
 
