@@ -3,534 +3,708 @@ package FiniteVolume2;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
-import java.awt.image.BufferedImage;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
+/**
+ * Classe principale pour la résolution d'équations différentielles par volumes finis
+ * Résout -u'' = f avec f = sin(π*x) + y^3
+ */
 public class ODEFiniteVolume extends JFrame {
     private static final double PI = Math.PI;
-    private static final int PANEL_SIZE = 600;
+    private static final int WINDOW_SIZE = 800;
+    private int currentN = 10;
+    private double[][] currentSolution;
+    private double[][] exactSolution;
+    private double[] meshSizes = {10, 20, 40};
+    private double[] errors = new double[meshSizes.length];
+    private JPanel mainPanel;
+    private JLabel infoLabel;
     
-    // Classe abstraite pour les différents types d'équations
-    abstract static class ODESolver {
-        protected int n;
-        protected double h;
-        protected double[][] u;
-        protected double[][] f;
-        protected double[][] exactSolution;
+    public ODEFiniteVolume() {
+        setTitle("Résolution EDP par Volumes Finis - Méthodes Comparatives");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLayout(new BorderLayout());
         
-        public ODESolver(int n) {
-            this.n = n;
-            this.h = 1.0 / (n - 1);
-            this.u = new double[n][n];
-            this.f = new double[n][n];
-            this.exactSolution = new double[n][n];
-            initializeSourceTerm();
-            computeExactSolution();
-        }
+        mainPanel = new JPanel();
+        mainPanel.setLayout(new GridLayout(2, 2));
         
-        private void initializeSourceTerm() {
-            for (int i = 0; i < n; i++) {
-                for (int j = 0; j < n; j++) {
-                    double x = i * h;
-                    double y = j * h;
-                    f[i][j] = Math.sin(PI * x) + Math.pow(y, 3);
-                }
-            }
-        }
+        infoLabel = new JLabel("Cliquez sur les graphiques pour voir les valeurs");
+        infoLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        infoLabel.setFont(new Font("Arial", Font.BOLD, 14));
         
-        protected abstract void computeExactSolution();
-        protected abstract void solve();
-        protected abstract String getName();
+        add(infoLabel, BorderLayout.NORTH);
+        add(mainPanel, BorderLayout.CENTER);
         
-        public double computeError() {
-            double error = 0.0;
-            for (int i = 0; i < n; i++) {
-                for (int j = 0; j < n; j++) {
-                    error += Math.pow(u[i][j] - exactSolution[i][j], 2);
-                }
-            }
-            return Math.sqrt(error * h * h);
-        }
+        // Panel de contrôle
+        JPanel controlPanel = new JPanel();
+        JButton btn10 = new JButton("N=10");
+        JButton btn20 = new JButton("N=20");
+        JButton btn40 = new JButton("N=40");
+        JButton btnError = new JButton("Courbe d'erreur");
         
-        public double[][] getSolution() { return u; }
-        public double[][] getExactSolution() { return exactSolution; }
-        public int getN() { return n; }
-        public double getH() { return h; }
+        btn10.addActionListener(e -> updateDisplay(10));
+        btn20.addActionListener(e -> updateDisplay(20));
+        btn40.addActionListener(e -> updateDisplay(40));
+        btnError.addActionListener(e -> showErrorCurve());
+        
+        controlPanel.add(btn10);
+        controlPanel.add(btn20);
+        controlPanel.add(btn40);
+        controlPanel.add(btnError);
+        
+        add(controlPanel, BorderLayout.SOUTH);
+        
+        // Calcul initial
+        runComparativeStudy();
+        updateDisplay(10);
+        
+        setSize(WINDOW_SIZE, WINDOW_SIZE + 100);
+        setLocationRelativeTo(null);
     }
     
-    // Classe pour -u'' + u = f
-    static class PoissonHelmholtz extends ODESolver {
-        public PoissonHelmholtz(int n) {
-            super(n);
-        }
-        
-        @Override
-        protected void computeExactSolution() {
-            // Solution exacte approximée pour -u'' + u = sin(πx) + y³
-            for (int i = 0; i < n; i++) {
-                for (int j = 0; j < n; j++) {
-                    double x = i * h;
-                    double y = j * h;
-                    // Solution approximée basée sur une série
-                    exactSolution[i][j] = Math.sin(PI * x) / (PI * PI + 1) + 
-                                        Math.pow(y, 3) / (1 + 6);
-                }
-            }
-        }
-        
-        @Override
-        protected void solve() {
-            // Méthode des volumes finis pour -u'' + u = f
-            // Système linéaire Ax = b
+    /**
+     * Fonction source f(x,y) = sin(π*x) + y^3
+     */
+    private double sourceFunction(double x, double y) {
+        return Math.sin(PI * x) + Math.pow(y, 3);
+    }
+    
+    /**
+     * Solution exacte approximée (pour validation)
+     */
+    private double exactSolutionFunction(double x, double y) {
+        // Solution approximée basée sur la série de Fourier
+        return Math.sin(PI * x) / (PI * PI) + y * y * y * y * y / 20.0;
+    }
+    
+    /**
+     * Résolution par méthode directe (Elimination de Gauss)
+     */
+    public class DirectSolver {
+        public double[][] solve(int n) {
+            double h = 1.0 / (n + 1);
             int size = n * n;
             double[][] A = new double[size][size];
             double[] b = new double[size];
             
+            // Construction de la matrice A et du vecteur b
             for (int i = 0; i < n; i++) {
                 for (int j = 0; j < n; j++) {
                     int idx = i * n + j;
+                    double x = (j + 1) * h;
+                    double y = (i + 1) * h;
                     
-                    if (i == 0 || i == n-1 || j == 0 || j == n-1) {
-                        // Conditions aux limites (Dirichlet u = 0)
-                        A[idx][idx] = 1.0;
-                        b[idx] = 0.0;
-                    } else {
-                        // Points intérieurs
-                        double coeff = 4.0/(h*h) + 1.0;
-                        A[idx][idx] = coeff;
-                        A[idx][idx-n] = -1.0/(h*h); // u[i-1][j]
-                        A[idx][idx+n] = -1.0/(h*h); // u[i+1][j]
-                        A[idx][idx-1] = -1.0/(h*h); // u[i][j-1]
-                        A[idx][idx+1] = -1.0/(h*h); // u[i][j+1]
-                        b[idx] = f[i][j];
-                    }
-                }
-            }
-            
-            // Résolution du système linéaire par Gauss-Seidel
-            double[] x = new double[size];
-            gaussSeidel(A, b, x, 1000, 1e-10);
-            
-            // Récupération de la solution
-            for (int i = 0; i < n; i++) {
-                for (int j = 0; j < n; j++) {
-                    u[i][j] = x[i * n + j];
-                }
-            }
-        }
-        
-        @Override
-        protected String getName() {
-            return "-u'' + u = f";
-        }
-    }
-    
-    // Classe pour -u'' + u' = f
-    static class ConvectionDiffusion extends ODESolver {
-        public ConvectionDiffusion(int n) {
-            super(n);
-        }
-        
-        @Override
-        protected void computeExactSolution() {
-            // Solution exacte approximée pour -u'' + u' = sin(πx) + y³
-            for (int i = 0; i < n; i++) {
-                for (int j = 0; j < n; j++) {
-                    double x = i * h;
-                    double y = j * h;
-                    exactSolution[i][j] = Math.sin(PI * x) / (PI * PI - PI) + 
-                                        Math.pow(y, 3) / 6;
-                }
-            }
-        }
-        
-        @Override
-        protected void solve() {
-            int size = n * n;
-            double[][] A = new double[size][size];
-            double[] b = new double[size];
-            
-            for (int i = 0; i < n; i++) {
-                for (int j = 0; j < n; j++) {
-                    int idx = i * n + j;
+                    // Coefficient diagonal
+                    A[idx][idx] = 4.0 / (h * h);
                     
-                    if (i == 0 || i == n-1 || j == 0 || j == n-1) {
-                        A[idx][idx] = 1.0;
-                        b[idx] = 0.0;
-                    } else {
-                        double coeff = 4.0/(h*h);
-                        A[idx][idx] = coeff;
-                        A[idx][idx-n] = -1.0/(h*h) - 0.5/h; // u[i-1][j]
-                        A[idx][idx+n] = -1.0/(h*h) + 0.5/h; // u[i+1][j]
-                        A[idx][idx-1] = -1.0/(h*h) - 0.5/h; // u[i][j-1]
-                        A[idx][idx+1] = -1.0/(h*h) + 0.5/h; // u[i][j+1]
-                        b[idx] = f[i][j];
-                    }
-                }
-            }
-            
-            double[] x = new double[size];
-            gaussSeidel(A, b, x, 1000, 1e-10);
-            
-            for (int i = 0; i < n; i++) {
-                for (int j = 0; j < n; j++) {
-                    u[i][j] = x[i * n + j];
-                }
-            }
-        }
-        
-        @Override
-        protected String getName() {
-            return "-u'' + u' = f";
-        }
-    }
-    
-    // Classe pour -u'' = f (Poisson pur)
-    static class Poisson extends ODESolver {
-        public Poisson(int n) {
-            super(n);
-        }
-        
-        @Override
-        protected void computeExactSolution() {
-            // Solution exacte pour -u'' = sin(πx) + y³
-            for (int i = 0; i < n; i++) {
-                for (int j = 0; j < n; j++) {
-                    double x = i * h;
-                    double y = j * h;
-                    exactSolution[i][j] = Math.sin(PI * x) / (PI * PI) + 
-                                        Math.pow(y, 3) / 6;
-                }
-            }
-        }
-        
-        @Override
-        protected void solve() {
-            int size = n * n;
-            double[][] A = new double[size][size];
-            double[] b = new double[size];
-            
-            for (int i = 0; i < n; i++) {
-                for (int j = 0; j < n; j++) {
-                    int idx = i * n + j;
+                    // Coefficients adjacents
+                    if (i > 0) A[idx][idx - n] = -1.0 / (h * h);
+                    if (i < n - 1) A[idx][idx + n] = -1.0 / (h * h);
+                    if (j > 0) A[idx][idx - 1] = -1.0 / (h * h);
+                    if (j < n - 1) A[idx][idx + 1] = -1.0 / (h * h);
                     
-                    if (i == 0 || i == n-1 || j == 0 || j == n-1) {
-                        A[idx][idx] = 1.0;
-                        b[idx] = 0.0;
-                    } else {
-                        A[idx][idx] = 4.0/(h*h);
-                        A[idx][idx-n] = -1.0/(h*h);
-                        A[idx][idx+n] = -1.0/(h*h);
-                        A[idx][idx-1] = -1.0/(h*h);
-                        A[idx][idx+1] = -1.0/(h*h);
-                        b[idx] = f[i][j];
-                    }
+                    b[idx] = sourceFunction(x, y);
                 }
             }
             
-            double[] x = new double[size];
-            gaussSeidel(A, b, x, 1000, 1e-10);
+            // Résolution par élimination de Gauss
+            double[] solution = gaussElimination(A, b);
             
+            // Conversion en matrice 2D
+            double[][] result = new double[n][n];
             for (int i = 0; i < n; i++) {
                 for (int j = 0; j < n; j++) {
-                    u[i][j] = x[i * n + j];
+                    result[i][j] = solution[i * n + j];
                 }
             }
+            
+            return result;
         }
         
-        @Override
-        protected String getName() {
-            return "-u'' = f";
+        private double[] gaussElimination(double[][] A, double[] b) {
+            int n = A.length;
+            
+            // Elimination avant
+            for (int k = 0; k < n - 1; k++) {
+                for (int i = k + 1; i < n; i++) {
+                    if (Math.abs(A[k][k]) < 1e-10) continue;
+                    double factor = A[i][k] / A[k][k];
+                    for (int j = k; j < n; j++) {
+                        A[i][j] -= factor * A[k][j];
+                    }
+                    b[i] -= factor * b[k];
+                }
+            }
+            
+            // Substitution arrière
+            double[] x = new double[n];
+            for (int i = n - 1; i >= 0; i--) {
+                x[i] = b[i];
+                for (int j = i + 1; j < n; j++) {
+                    x[i] -= A[i][j] * x[j];
+                }
+                if (Math.abs(A[i][i]) > 1e-10) {
+                    x[i] /= A[i][i];
+                }
+            }
+            
+            return x;
         }
     }
     
-    // Méthode de Gauss-Seidel pour résoudre le système linéaire
-    static void gaussSeidel(double[][] A, double[] b, double[] x, int maxIter, double tol) {
-        int n = A.length;
-        double[] xOld = new double[n];
+    /**
+     * Résolution par Gauss-Seidel avec relaxation
+     */
+    public class GaussSeidelSolver {
+        private double omega = 1.5; // Facteur de relaxation
+        private int maxIter = 1000;
+        private double tolerance = 1e-6;
         
-        for (int iter = 0; iter < maxIter; iter++) {
-            System.arraycopy(x, 0, xOld, 0, n);
+        public double[][] solve(int n) {
+            double h = 1.0 / (n + 1);
+            double[][] u = new double[n][n];
+            double[][] uOld = new double[n][n];
             
+            // Initialisation
             for (int i = 0; i < n; i++) {
-                double sum = 0.0;
                 for (int j = 0; j < n; j++) {
-                    if (i != j) {
-                        sum += A[i][j] * x[j];
+                    u[i][j] = 0.0;
+                }
+            }
+            
+            // Itérations Gauss-Seidel avec relaxation
+            for (int iter = 0; iter < maxIter; iter++) {
+                // Sauvegarde solution précédente
+                for (int i = 0; i < n; i++) {
+                    System.arraycopy(u[i], 0, uOld[i], 0, n);
+                }
+                
+                // Mise à jour des valeurs
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        double x = (j + 1) * h;
+                        double y = (i + 1) * h;
+                        
+                        double sum = 0.0;
+                        if (i > 0) sum += u[i-1][j];
+                        if (i < n-1) sum += uOld[i+1][j];
+                        if (j > 0) sum += u[i][j-1];
+                        if (j < n-1) sum += uOld[i][j+1];
+                        
+                        double newVal = (h * h * sourceFunction(x, y) + sum) / 4.0;
+                        u[i][j] = (1 - omega) * uOld[i][j] + omega * newVal;
                     }
                 }
-                x[i] = (b[i] - sum) / A[i][i];
+                
+                // Test de convergence
+                double maxDiff = 0.0;
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        maxDiff = Math.max(maxDiff, Math.abs(u[i][j] - uOld[i][j]));
+                    }
+                }
+                
+                if (maxDiff < tolerance) {
+                    System.out.println("Gauss-Seidel convergé en " + iter + " itérations");
+                    break;
+                }
             }
             
-            // Vérification de la convergence
-            double error = 0.0;
-            for (int i = 0; i < n; i++) {
-                error += Math.pow(x[i] - xOld[i], 2);
-            }
-            if (Math.sqrt(error) < tol) break;
+            return u;
         }
     }
     
-    // Panneau de visualisation avec colormap et info sur survol
-    static class VisualizationPanel extends JPanel implements MouseMotionListener {
-        private double[][] data;
+    /**
+     * Résolution par Gauss-Seidel parallélisé
+     */
+    public class ParallelGaussSeidelSolver {
+        private double omega = 1.5;
+        private int maxIter = 1000;
+        private double tolerance = 1e-6;
+        private ExecutorService executor = Executors.newFixedThreadPool(4);
+        
+        public double[][] solve(int n) {
+            double h = 1.0 / (n + 1);
+            double[][] u = new double[n][n];
+            double[][] uOld = new double[n][n];
+            
+            // Initialisation
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    u[i][j] = 0.0;
+                }
+            }
+            
+            // Itérations parallèles
+            for (int iter = 0; iter < maxIter; iter++) {
+                // Sauvegarde solution précédente
+                for (int i = 0; i < n; i++) {
+                    System.arraycopy(u[i], 0, uOld[i], 0, n);
+                }
+                
+                // Mise à jour parallèle par damier (red-black)
+                updateRedBlack(u, uOld, n, h, true);  // Points rouges
+                updateRedBlack(u, uOld, n, h, false); // Points noirs
+                
+                // Test de convergence
+                double maxDiff = 0.0;
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        maxDiff = Math.max(maxDiff, Math.abs(u[i][j] - uOld[i][j]));
+                    }
+                }
+                
+                if (maxDiff < tolerance) {
+                    System.out.println("Gauss-Seidel parallèle convergé en " + iter + " itérations");
+                    break;
+                }
+            }
+            
+            executor.shutdown();
+            return u;
+        }
+        
+        private void updateRedBlack(double[][] u, double[][] uOld, int n, double h, boolean red) {
+            Future<?>[] futures = new Future[4];
+            
+            for (int t = 0; t < 4; t++) {
+                final int thread = t;
+                futures[t] = executor.submit(() -> {
+                    int startRow = thread * n / 4;
+                    int endRow = (thread + 1) * n / 4;
+                    
+                    for (int i = startRow; i < endRow; i++) {
+                        for (int j = 0; j < n; j++) {
+                            // Damier: rouge si (i+j) pair, noir sinon
+                            if (((i + j) % 2 == 0) != red) continue;
+                            
+                            double x = (j + 1) * h;
+                            double y = (i + 1) * h;
+                            
+                            double sum = 0.0;
+                            if (i > 0) sum += u[i-1][j];
+                            if (i < n-1) sum += uOld[i+1][j];
+                            if (j > 0) sum += u[i][j-1];
+                            if (j < n-1) sum += uOld[i][j+1];
+                            
+                            double newVal = (h * h * sourceFunction(x, y) + sum) / 4.0;
+                            u[i][j] = (1 - omega) * uOld[i][j] + omega * newVal;
+                        }
+                    }
+                });
+            }
+            
+            // Attendre la fin de tous les threads
+            for (Future<?> future : futures) {
+                try {
+                    future.get();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    
+    /**
+     * Calcul de l'erreur L2
+     */
+    private double calculateError(double[][] numerical, double[][] exact) {
+        double error = 0.0;
+        int n = numerical.length;
+        
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                double diff = numerical[i][j] - exact[i][j];
+                error += diff * diff;
+            }
+        }
+        
+        return Math.sqrt(error / (n * n));
+    }
+    
+    /**
+     * Calcul de l'ordre de convergence
+     */
+    private double calculateConvergenceOrder(double[] errors) {
+        if (errors.length < 2) return 0.0;
+        
+        double order = 0.0;
+        for (int i = 1; i < errors.length; i++) {
+            if (errors[i] > 0 && errors[i-1] > 0) {
+                order += Math.log(errors[i-1] / errors[i]) / Math.log(2.0);
+            }
+        }
+        
+        return order / (errors.length - 1);
+    }
+    
+    /**
+     * Étude comparative des trois méthodes
+     */
+    private void runComparativeStudy() {
+        DirectSolver directSolver = new DirectSolver();
+        GaussSeidelSolver gsSolver = new GaussSeidelSolver();
+        ParallelGaussSeidelSolver pgsSolver = new ParallelGaussSeidelSolver();
+        
+        System.out.println("=== ÉTUDE COMPARATIVE ===");
+        System.out.println("Équation: -u'' = sin(π*x) + y³");
+        System.out.println();
+        
+        for (int idx = 0; idx < meshSizes.length; idx++) {
+            int n = (int) meshSizes[idx];
+            System.out.println("Maillage " + n + "x" + n + ":");
+            
+            // Solution exacte
+            double[][] exact = new double[n][n];
+            double h = 1.0 / (n + 1);
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    double x = (j + 1) * h;
+                    double y = (i + 1) * h;
+                    exact[i][j] = exactSolutionFunction(x, y);
+                }
+            }
+            
+            // Méthode directe
+            long startTime = System.currentTimeMillis();
+            double[][] directSol = directSolver.solve(n);
+            long directTime = System.currentTimeMillis() - startTime;
+            double directError = calculateError(directSol, exact);
+            
+            // Gauss-Seidel
+            startTime = System.currentTimeMillis();
+            double[][] gsSol = gsSolver.solve(n);
+            long gsTime = System.currentTimeMillis() - startTime;
+            double gsError = calculateError(gsSol, exact);
+            
+            // Gauss-Seidel parallèle
+            startTime = System.currentTimeMillis();
+            double[][] pgsSol = pgsSolver.solve(n);
+            long pgsTime = System.currentTimeMillis() - startTime;
+            double pgsError = calculateError(pgsSol, exact);
+            
+            errors[idx] = directError; // Utilisation de l'erreur directe pour la courbe
+            
+            System.out.printf("  Méthode directe: Erreur=%.6f, Temps=%dms%n", directError, directTime);
+            System.out.printf("  Gauss-Seidel: Erreur=%.6f, Temps=%dms%n", gsError, gsTime);
+            System.out.printf("  GS Parallèle: Erreur=%.6f, Temps=%dms%n", pgsError, pgsTime);
+            System.out.println();
+        }
+        
+        double convergenceOrder = calculateConvergenceOrder(errors);
+        System.out.printf("Ordre de convergence: %.3f%n", convergenceOrder);
+        System.out.println("==================");
+    }
+    
+    /**
+     * Mise à jour de l'affichage
+     */
+    private void updateDisplay(int n) {
+        currentN = n;
+        
+        // Calcul des solutions
+        DirectSolver solver = new DirectSolver();
+        currentSolution = solver.solve(n);
+        
+        exactSolution = new double[n][n];
+        double h = 1.0 / (n + 1);
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                double x = (j + 1) * h;
+                double y = (i + 1) * h;
+                exactSolution[i][j] = exactSolutionFunction(x, y);
+            }
+        }
+        
+        // Mise à jour des panneaux
+        mainPanel.removeAll();
+        
+        mainPanel.add(new SolutionPanel("Solution Numérique", currentSolution));
+        mainPanel.add(new SolutionPanel("Solution Exacte", exactSolution));
+        mainPanel.add(new ErrorPanel("Erreur Absolue", currentSolution, exactSolution));
+        mainPanel.add(new InfoPanel());
+        
+        mainPanel.revalidate();
+        mainPanel.repaint();
+        
+        double error = calculateError(currentSolution, exactSolution);
+        infoLabel.setText(String.format("N=%d, Erreur L2=%.6f", n, error));
+    }
+    
+    /**
+     * Affichage de la courbe d'erreur
+     */
+    private void showErrorCurve() {
+        JFrame errorFrame = new JFrame("Évolution de l'erreur");
+        errorFrame.setSize(600, 400);
+        errorFrame.setLocationRelativeTo(this);
+        
+        JPanel errorPanel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                int width = getWidth() - 80;
+                int height = getHeight() - 80;
+                int offsetX = 40;
+                int offsetY = 40;
+                
+                // Axes
+                g2d.drawLine(offsetX, offsetY + height, offsetX + width, offsetY + height);
+                g2d.drawLine(offsetX, offsetY, offsetX, offsetY + height);
+                
+                // Étiquettes
+                g2d.drawString("Nombre de mailles", offsetX + width/2, offsetY + height + 30);
+                g2d.rotate(-Math.PI/2);
+                g2d.drawString("Erreur L2", -offsetY - height/2, 20);
+                g2d.rotate(Math.PI/2);
+                
+                // Courbe d'erreur
+                g2d.setColor(Color.RED);
+                g2d.setStroke(new BasicStroke(2));
+                
+                for (int i = 0; i < errors.length - 1; i++) {
+                    int x1 = offsetX + (int)(i * width / (errors.length - 1));
+                    int x2 = offsetX + (int)((i + 1) * width / (errors.length - 1));
+                    
+                    double maxError = 0.0;
+                    for (double error : errors) {
+                        maxError = Math.max(maxError, error);
+                    }
+                    
+                    int y1 = offsetY + height - (int)(errors[i] * height / maxError);
+                    int y2 = offsetY + height - (int)(errors[i + 1] * height / maxError);
+                    
+                    g2d.drawLine(x1, y1, x2, y2);
+                    g2d.fillOval(x1 - 3, y1 - 3, 6, 6);
+                }
+                
+                // Dernier point
+                int lastX = offsetX + width;
+                int lastY = offsetY + height - (int)(errors[errors.length - 1] * height / getMaxError());
+                g2d.fillOval(lastX - 3, lastY - 3, 6, 6);
+                
+                // Valeurs
+                g2d.setColor(Color.BLACK);
+                for (int i = 0; i < errors.length; i++) {
+                    int x = offsetX + (int)(i * width / (errors.length - 1));
+                    g2d.drawString(String.valueOf((int)meshSizes[i]), x - 10, offsetY + height + 15);
+                    g2d.drawString(String.format("%.2e", errors[i]), x - 20, offsetY + height - (int)(errors[i] * height / getMaxError()) - 10);
+                }
+            }
+            
+            private double getMaxError() {
+                double max = 0.0;
+                for (double error : errors) {
+                    max = Math.max(max, error);
+                }
+                return max;
+            }
+        };
+        
+        errorFrame.add(errorPanel);
+        errorFrame.setVisible(true);
+    }
+    
+    /**
+     * Panel pour afficher une solution avec carte de couleur
+     */
+    private class SolutionPanel extends JPanel implements MouseListener, MouseMotionListener {
         private String title;
-        private BufferedImage image;
-        private int mouseX = -1, mouseY = -1;
-        private double mouseValue = 0.0;
+        private double[][] data;
+        private double minVal, maxVal;
         
-        public VisualizationPanel(double[][] data, String title) {
-            this.data = data;
+        public SolutionPanel(String title, double[][] data) {
             this.title = title;
-            setPreferredSize(new Dimension(PANEL_SIZE, PANEL_SIZE));
-            addMouseMotionListener(this);
-            createImage();
-        }
-        
-        private void createImage() {
-            int n = data.length;
-            image = new BufferedImage(PANEL_SIZE, PANEL_SIZE, BufferedImage.TYPE_INT_RGB);
-            Graphics2D g2d = image.createGraphics();
+            this.data = data;
+            this.setBorder(BorderFactory.createTitledBorder(title));
+            this.addMouseListener(this);
+            this.addMouseMotionListener(this);
             
-            // Trouver min et max pour la normalisation
-            double min = Double.MAX_VALUE, max = -Double.MAX_VALUE;
-            for (int i = 0; i < n; i++) {
-                for (int j = 0; j < n; j++) {
-                    min = Math.min(min, data[i][j]);
-                    max = Math.max(max, data[i][j]);
+            // Calcul min/max
+            minVal = maxVal = data[0][0];
+            for (double[] row : data) {
+                for (double val : row) {
+                    minVal = Math.min(minVal, val);
+                    maxVal = Math.max(maxVal, val);
                 }
-            }
-            
-            double range = max - min;
-            if (range == 0) range = 1.0;
-            
-            // Dessiner la heatmap
-            int pixelSize = PANEL_SIZE / n;
-            for (int i = 0; i < n; i++) {
-                for (int j = 0; j < n; j++) {
-                    double normalized = (data[i][j] - min) / range;
-                    Color color = getHeatmapColor(normalized);
-                    g2d.setColor(color);
-                    g2d.fillRect(i * pixelSize, j * pixelSize, pixelSize, pixelSize);
-                }
-            }
-            
-            g2d.dispose();
-        }
-        
-        private Color getHeatmapColor(double value) {
-            // Colormap bleu -> cyan -> vert -> jaune -> rouge
-            if (value < 0.25) {
-                float ratio = (float)(value / 0.25);
-                return new Color(0, (int)(255 * ratio), 255);
-            } else if (value < 0.5) {
-                float ratio = (float)((value - 0.25) / 0.25);
-                return new Color(0, 255, (int)(255 * (1 - ratio)));
-            } else if (value < 0.75) {
-                float ratio = (float)((value - 0.5) / 0.25);
-                return new Color((int)(255 * ratio), 255, 0);
-            } else {
-                float ratio = (float)((value - 0.75) / 0.25);
-                return new Color(255, (int)(255 * (1 - ratio)), 0);
             }
         }
         
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            if (image != null) {
-                g.drawImage(image, 0, 0, null);
+            
+            int width = getWidth() - 20;
+            int height = getHeight() - 40;
+            int n = data.length;
+            
+            double cellWidth = (double) width / n;
+            double cellHeight = (double) height / n;
+            
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    double normalizedVal = (data[i][j] - minVal) / (maxVal - minVal);
+                    Color color = getColor(normalizedVal);
+                    
+                    g.setColor(color);
+                    int x = 10 + (int)(j * cellWidth);
+                    int y = 30 + (int)(i * cellHeight);
+                    g.fillRect(x, y, (int)cellWidth + 1, (int)cellHeight + 1);
+                }
             }
             
-            // Titre
-            g.setColor(Color.WHITE);
-            g.setFont(new Font("Arial", Font.BOLD, 14));
-            g.drawString(title, 10, 20);
-            
-            // Affichage de la valeur sous le curseur
-            if (mouseX >= 0 && mouseY >= 0) {
-                String valueStr = String.format("Valeur: %.4f", mouseValue);
-                FontMetrics fm = g.getFontMetrics();
-                int strWidth = fm.stringWidth(valueStr);
-                int x = mouseX + 10;
-                if (x + strWidth > getWidth()) x = mouseX - strWidth - 10;
-                
-                g.setColor(Color.BLACK);
-                g.fillRect(x-2, mouseY-17, strWidth+4, 20);
-                g.setColor(Color.WHITE);
-                g.drawString(valueStr, x, mouseY);
+            // Grille
+            g.setColor(Color.GRAY);
+            for (int i = 0; i <= n; i++) {
+                int x = 10 + (int)(i * cellWidth);
+                int y = 30 + (int)(i * cellHeight);
+                g.drawLine(x, 30, x, 30 + height);
+                g.drawLine(10, y, 10 + width, y);
             }
+            
+            // Échelle de couleur
+            drawColorScale(g);
+        }
+        
+        private Color getColor(double value) {
+            // Palette de couleur bleue vers rouge
+            if (value < 0.5) {
+                return new Color(0, (int)(255 * 2 * value), 255);
+            } else {
+                return new Color((int)(255 * 2 * (value - 0.5)), 255, (int)(255 * 2 * (1 - value)));
+            }
+        }
+        
+        private void drawColorScale(Graphics g) {
+            int scaleWidth = 20;
+            int scaleHeight = 100;
+            int x = getWidth() - scaleWidth - 10;
+            int y = getHeight() - scaleHeight - 10;
+            
+            for (int i = 0; i < scaleHeight; i++) {
+                double val = (double) i / scaleHeight;
+                g.setColor(getColor(val));
+                g.drawLine(x, y + scaleHeight - i, x + scaleWidth, y + scaleHeight - i);
+            }
+            
+            g.setColor(Color.BLACK);
+            g.drawRect(x, y, scaleWidth, scaleHeight);
+            g.drawString(String.format("%.3f", maxVal), x + scaleWidth + 5, y + 5);
+            g.drawString(String.format("%.3f", minVal), x + scaleWidth + 5, y + scaleHeight);
+        }
+        
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            showValueAtPoint(e.getX(), e.getY());
         }
         
         @Override
         public void mouseMoved(MouseEvent e) {
-            mouseX = e.getX();
-            mouseY = e.getY();
-            
+            showValueAtPoint(e.getX(), e.getY());
+        }
+        
+        private void showValueAtPoint(int mouseX, int mouseY) {
+            int width = getWidth() - 20;
+            int height = getHeight() - 40;
             int n = data.length;
-            int pixelSize = PANEL_SIZE / n;
-            int i = mouseX / pixelSize;
-            int j = mouseY / pixelSize;
+            
+            double cellWidth = (double) width / n;
+            double cellHeight = (double) height / n;
+            
+            int i = (int)((mouseY - 30) / cellHeight);
+            int j = (int)((mouseX - 10) / cellWidth);
             
             if (i >= 0 && i < n && j >= 0 && j < n) {
-                mouseValue = data[i][j];
-                repaint();
+                double h = 1.0 / (n + 1);
+                double x = (j + 1) * h;
+                double y = (i + 1) * h;
+                
+                String info = String.format("%s - Point(%.3f,%.3f): %.6f", 
+                    title, x, y, data[i][j]);
+                infoLabel.setText(info);
             }
         }
         
-        @Override
-        public void mouseDragged(MouseEvent e) {
-            mouseMoved(e);
+        @Override public void mousePressed(MouseEvent e) {}
+        @Override public void mouseReleased(MouseEvent e) {}
+        @Override public void mouseEntered(MouseEvent e) {}
+        @Override public void mouseExited(MouseEvent e) {}
+        @Override public void mouseDragged(MouseEvent e) {}
+    }
+    
+    /**
+     * Panel pour afficher l'erreur
+     */
+    private class ErrorPanel extends SolutionPanel {
+        public ErrorPanel(String title, double[][] numerical, double[][] exact) {
+            super(title, calculateErrorMatrix(numerical, exact));
+        }
+        
+        private static double[][] calculateErrorMatrix(double[][] numerical, double[][] exact) {
+            int n = numerical.length;
+            double[][] error = new double[n][n];
+            
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    error[i][j] = Math.abs(numerical[i][j] - exact[i][j]);
+                }
+            }
+            
+            return error;
         }
     }
     
-    // Panneau pour les graphiques d'erreur
-    static class ErrorPanel extends JPanel {
-        private List<Integer> meshSizes;
-        private List<Double> errors;
-        private String title;
-        
-        public ErrorPanel(List<Integer> meshSizes, List<Double> errors, String title) {
-            this.meshSizes = meshSizes;
-            this.errors = errors;
-            this.title = title;
-            setPreferredSize(new Dimension(400, 300));
-        }
-        
+    /**
+     * Panel d'informations
+     */
+    private class InfoPanel extends JPanel {
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-            Graphics2D g2d = (Graphics2D) g;
-            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             
-            int margin = 50;
-            int width = getWidth() - 2 * margin;
-            int height = getHeight() - 2 * margin;
+            g.setColor(Color.BLACK);
+            g.setFont(new Font("Arial", Font.BOLD, 12));
             
-            // Axes
-            g2d.setColor(Color.BLACK);
-            g2d.drawLine(margin, getHeight() - margin, getWidth() - margin, getHeight() - margin);
-            g2d.drawLine(margin, margin, margin, getHeight() - margin);
+            int y = 30;
+            g.drawString("Méthodes de résolution:", 10, y);
+            y += 20;
+            g.drawString("• Méthode directe (Élimination de Gauss)", 10, y);
+            y += 15;
+            g.drawString("• Gauss-Seidel avec relaxation", 10, y);
+            y += 15;
+            g.drawString("• Gauss-Seidel parallélisé", 10, y);
+            y += 25;
             
-            // Titre
-            g2d.setFont(new Font("Arial", Font.BOLD, 14));
-            FontMetrics fm = g2d.getFontMetrics();
-            int titleWidth = fm.stringWidth(title);
-            g2d.drawString(title, (getWidth() - titleWidth) / 2, 20);
+            g.drawString("Équation: -u'' = sin(π*x) + y³", 10, y);
+            y += 20;
             
-            if (meshSizes.size() < 2) return;
-            
-            // Échelles logarithmiques
-            double minMesh = Math.log10(meshSizes.get(0));
-            double maxMesh = Math.log10(meshSizes.get(meshSizes.size() - 1));
-            double minError = Math.log10(errors.stream().mapToDouble(Double::doubleValue).min().orElse(1e-10));
-            double maxError = Math.log10(errors.stream().mapToDouble(Double::doubleValue).max().orElse(1.0));
-            
-            // Points et lignes
-            g2d.setColor(Color.BLUE);
-            g2d.setStroke(new BasicStroke(2));
-            
-            for (int i = 0; i < meshSizes.size() - 1; i++) {
-                double x1 = margin + width * (Math.log10(meshSizes.get(i)) - minMesh) / (maxMesh - minMesh);
-                double y1 = getHeight() - margin - height * (Math.log10(errors.get(i)) - minError) / (maxError - minError);
-                double x2 = margin + width * (Math.log10(meshSizes.get(i+1)) - minMesh) / (maxMesh - minMesh);
-                double y2 = getHeight() - margin - height * (Math.log10(errors.get(i+1)) - minError) / (maxError - minError);
+            if (currentSolution != null && exactSolution != null) {
+                double error = calculateError(currentSolution, exactSolution);
+                g.drawString(String.format("Erreur L2: %.6f", error), 10, y);
+                y += 15;
                 
-                g2d.drawLine((int)x1, (int)y1, (int)x2, (int)y2);
-                g2d.fillOval((int)x1-3, (int)y1-3, 6, 6);
+                g.drawString("Ordre de convergence: " + 
+                    String.format("%.3f", calculateConvergenceOrder(errors)), 10, y);
             }
-            
-            // Dernier point
-            double xLast = margin + width * (Math.log10(meshSizes.get(meshSizes.size()-1)) - minMesh) / (maxMesh - minMesh);
-            double yLast = getHeight() - margin - height * (Math.log10(errors.get(errors.size()-1)) - minError) / (maxError - minError);
-            g2d.fillOval((int)xLast-3, (int)yLast-3, 6, 6);
-            
-            // Labels des axes
-            g2d.setColor(Color.BLACK);
-            g2d.setFont(new Font("Arial", Font.PLAIN, 10));
-            g2d.drawString("Nombre de mailles", getWidth()/2 - 40, getHeight() - 10);
-            
-            // Rotation pour le label y
-            g2d.rotate(-Math.PI/2);
-            g2d.drawString("Erreur L2", -getHeight()/2 - 20, 15);
         }
     }
     
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            // Création des solveurs
-            ODESolver[] solvers = {
-                new PoissonHelmholtz(50),
-                new ConvectionDiffusion(50),
-                new Poisson(50)
-            };
-            
-            // Calcul des solutions et erreurs pour différentes tailles de mailles
-            int[] meshSizes = {20, 50, 100, 200};
-            
-            for (ODESolver solver : solvers) {
-                System.out.println("\n=== " + solver.getName() + " ===");
-                
-                List<Integer> sizes = new ArrayList<>();
-                List<Double> errors = new ArrayList<>();
-                
-                // Test de convergence
-                for (int n : meshSizes) {
-                    ODESolver testSolver;
-                    if (solver instanceof PoissonHelmholtz) {
-                        testSolver = new PoissonHelmholtz(n);
-                    } else if (solver instanceof ConvectionDiffusion) {
-                        testSolver = new ConvectionDiffusion(n);
-                    } else {
-                        testSolver = new Poisson(n);
-                    }
-                    
-                    testSolver.solve();
-                    double error = testSolver.computeError();
-                    
-                    sizes.add(n);
-                    errors.add(error);
-                    
-                    System.out.printf("Mailles: %d, Erreur L2: %.6e\n", n, error);
-                }
-                
-                // Calcul de l'ordre de convergence
-                if (errors.size() >= 2) {
-                    double order = Math.log(errors.get(errors.size()-1) / errors.get(errors.size()-2)) / 
-                                  Math.log((double)sizes.get(sizes.size()-2) / sizes.get(sizes.size()-1));
-                    System.out.printf("Ordre de convergence estimé: %.2f\n", order);
-                }
-                
-                // Résolution pour n=50 pour visualisation
-                solver.solve();
-                
-                // Création de l'interface graphique
-                JFrame frame = new JFrame(solver.getName());
-                frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-                frame.setLayout(new GridLayout(2, 2));
-                
-                // Panneaux de visualisation
-                frame.add(new VisualizationPanel(solver.getSolution(), "Solution numérique"));
-                frame.add(new VisualizationPanel(solver.getExactSolution(), "Solution exacte"));
-                
-                // Calcul de l'erreur point par point
-                double[][] errorMap = new double[solver.getN()][solver.getN()];
-                for (int i = 0; i < solver.getN(); i++) {
-                    for (int j = 0; j < solver.getN(); j++) {
-                        errorMap[i][j] = Math.abs(solver.getSolution()[i][j] - solver.getExactSolution()[i][j]);
-                    }
-                }
-                frame.add(new VisualizationPanel(errorMap, "Erreur absolue"));
-                
-                // Graphique d'évolution de l'erreur
-                frame.add(new ErrorPanel(sizes, errors, "Évolution de l'erreur"));
-                
-                frame.pack();
-                frame.setVisible(true);
-                frame.setLocationRelativeTo(null);
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeel());
+            } catch (Exception e) {
+                e.printStackTrace();
             }
+            
+            new ODEFiniteVolume().setVisible(true);
         });
     }
 }
