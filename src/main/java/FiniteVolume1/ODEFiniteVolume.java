@@ -402,8 +402,8 @@ public class ODEFiniteVolume extends JFrame {
             SourceFunction selectedFunction = functions[choice];
             
             // Tester les trois équations
-            Class<?>[] solverClasses = {Solver1.class, Solver2.class, Solver3.class};
-            int[] meshSizes = {50, 500, 5000};
+            Class<?>[] solverClasses = {/*Solver1.class, Solver2.class, */Solver3.class};
+            int[] meshSizes = {10, 20, 40, 80, 160, 320, 640};
             
             for (Class<?> solverClass : solverClasses) {
                 try {
@@ -434,13 +434,13 @@ public class ODEFiniteVolume extends JFrame {
                     
                     // Graphique des solutions pour 50 mailles
                     ODESolver solver50 = (ODESolver) solverClass.getConstructor(int.class, SourceFunction.class)
-                                                               .newInstance(50, selectedFunction);
+                                                               .newInstance(640, selectedFunction);
                     solver50.solve();
                     solver50.computeExactSolution();
                     
                     JFrame frame = new JFrame("Solutions - " + solver50.getEquationType());
                     PlotPanel plotPanel = new PlotPanel(
-                        solver50.getEquationType() + " (50 mailles)",
+                        solver50.getEquationType() + " (640 mailles)",
                         "x", "u(x)"
                     );
                     

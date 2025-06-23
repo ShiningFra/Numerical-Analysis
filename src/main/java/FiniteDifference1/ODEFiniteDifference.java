@@ -381,7 +381,7 @@ public class ODEFiniteDifference {
                 tabbedPane.removeAll();
                 
                 // Résolution pour différents nombres de mailles
-                int[] meshSizes = {50, 500, 5000};
+                int[] meshSizes = {10, 20, 40, 80, 160, 320, 640};
                 List<Solution> solutions = new ArrayList<>();
                 
                 System.out.println("\n=== Résultats pour " + selectedType.getDescription() + " avec f = " + selectedFunction.getName() + " ===");
