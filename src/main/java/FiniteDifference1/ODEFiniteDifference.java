@@ -412,7 +412,7 @@ public class ODEFiniteDifference {
                 EquationType selectedType = (EquationType) typeCombo.getSelectedItem();
                 
                 // Calcul pour plusieurs tailles de mailles pour la courbe d'erreur
-                int[] meshSizes = {10, 20, 50, 100, 200, 500, 1000, 2000, 5000};
+                int[] meshSizes = {10, 20, 40, 80, 160, 320, 640};
                 List<Solution> errorSolutions = new ArrayList<>();
                 
                 for (int n : meshSizes) {

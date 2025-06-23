@@ -3,362 +3,247 @@ package FiniteDifference2;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
-public class ODEFiniteDifference extends JFrame {
-    private static final int PANEL_WIDTH = 800;
-    private static final int PANEL_HEIGHT = 600;
+public class ODEFiniteDifference {
     private static final double PI = Math.PI;
     
-    // Domaine de calcul [0,1] x [0,1]
-    private static final double X_MIN = 0.0, X_MAX = 1.0;
-    private static final double Y_MIN = 0.0, Y_MAX = 1.0;
-    
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            new ODEFiniteDifference().runSimulations();
-        });
-    }
-    
-    public void runSimulations() {
-        System.out.println("=== Résolution d'EDP par différences finies 2D ===\n");
-        
-        // Test avec différents nombres de mailles
-        int[] meshSizes = {50, 100, 200, 500, 1000, 2000, 5000};
-        
-        // Résoudre les trois équations
-        EDPSolver solver1 = new EDPSolver1(); // -u'' + u = f
-        EDPSolver solver2 = new EDPSolver2(); // -u'' + u' = f  
-        EDPSolver solver3 = new EDPSolver3(); // -u'' = f
-        
-        System.out.println("1. Équation: -u'' + u = f");
-        runConvergenceAnalysis(solver1, meshSizes);
-        
-        System.out.println("\n2. Équation: -u'' + u' = f");
-        runConvergenceAnalysis(solver2, meshSizes);
-        
-        System.out.println("\n3. Équation: -u'' = f");
-        runConvergenceAnalysis(solver3, meshSizes);
-        
-        // Visualisation pour N=50, 500, 5000
-        int[] visualMeshSizes = {50, 500, 5000};
-        
-        for (int N : visualMeshSizes) {
-            System.out.println("\n=== Visualisation pour N = " + N + " ===");
+    // Classe pour la méthode directe
+    static class DirectMethod {
+        public static double[][] solve(int n, double h) {
+            double[][] u = new double[n+1][n+1];
+            double[][] f = new double[n+1][n+1];
             
-            // Résoudre avec chaque équation
-            Result result1 = solver1.solve(N);
-            Result result2 = solver2.solve(N);
-            Result result3 = solver3.solve(N);
+            // Calcul de f(x,y) = sin(π*x) + y³
+            for (int i = 0; i <= n; i++) {
+                for (int j = 0; j <= n; j++) {
+                    double x = i * h;
+                    double y = j * h;
+                    f[i][j] = Math.sin(PI * x) + Math.pow(y, 3);
+                }
+            }
             
-            // Afficher les graphiques
-            showVisualization("Equation 1: -u'' + u = f (N=" + N + ")", result1, N);
-            showVisualization("Equation 2: -u'' + u' = f (N=" + N + ")", result2, N);
-            showVisualization("Equation 3: -u'' = f (N=" + N + ")", result3, N);
-        }
-        
-        // Courbes de convergence
-        showConvergencePlots(solver1, solver2, solver3, meshSizes);
-    }
-    
-    private void runConvergenceAnalysis(EDPSolver solver, int[] meshSizes) {
-        List<Double> errors = new ArrayList<>();
-        
-        for (int N : meshSizes) {
-            Result result = solver.solve(N);
-            errors.add(result.error);
-            System.out.printf("N=%d, Erreur=%.6e\n", N, result.error);
-        }
-        
-        // Calcul de l'ordre de convergence
-        System.out.println("Ordres de convergence:");
-        for (int i = 1; i < errors.size(); i++) {
-            double h1 = 1.0 / meshSizes[i-1];
-            double h2 = 1.0 / meshSizes[i];
-            double order = Math.log(errors.get(i-1) / errors.get(i)) / Math.log(h1 / h2);
-            System.out.printf("Entre N=%d et N=%d: ordre = %.3f\n", 
-                meshSizes[i-1], meshSizes[i], order);
-        }
-    }
-    
-    private void showVisualization(String title, Result result, int N) {
-        JFrame frame = new JFrame(title);
-        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        frame.setSize(PANEL_WIDTH + 100, PANEL_HEIGHT + 100);
-        
-        SolutionPanel panel = new SolutionPanel(result, N);
-        frame.add(panel);
-        frame.setVisible(true);
-    }
-    
-    private void showConvergencePlots(EDPSolver solver1, EDPSolver solver2, EDPSolver solver3, int[] meshSizes) {
-        JFrame frame = new JFrame("Courbes de convergence");
-        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        frame.setSize(PANEL_WIDTH, PANEL_HEIGHT);
-        
-        ConvergencePlotPanel panel = new ConvergencePlotPanel(solver1, solver2, solver3, meshSizes);
-        frame.add(panel);
-        frame.setVisible(true);
-    }
-    
-    // Fonction f(x,y) = sin(pi*x) + y^3
-    public static double f(double x, double y) {
-        return Math.sin(PI * x) + y * y * y;
-    }
-    
-    // Solution exacte pour -u'' + u = f (approximation)
-    public static double exactSolution1(double x, double y) {
-        return Math.sin(PI * x) / (PI * PI + 1) + y * y * y;
-    }
-    
-    // Solution exacte pour -u'' + u' = f (approximation)
-    public static double exactSolution2(double x, double y) {
-        return Math.sin(PI * x) / (PI * PI) + y * y * y / 2;
-    }
-    
-    // Solution exacte pour -u'' = f (approximation)
-    public static double exactSolution3(double x, double y) {
-        return -Math.sin(PI * x) / (PI * PI) + y * y * y * y / 12;
-    }
-    
-    // Classe abstraite pour les solveurs
-    abstract static class EDPSolver {
-        public abstract Result solve(int N);
-        protected abstract double exactSolution(double x, double y);
-        
-        protected double[][] buildMatrix(int N) {
-            int size = (N-1) * (N-1);
+            // Résolution par méthode de Gauss (élimination)
+            int size = (n-1) * (n-1);
             double[][] A = new double[size][size];
-            double h = 1.0 / N;
+            double[] b = new double[size];
             
-            for (int i = 0; i < N-1; i++) {
-                for (int j = 0; j < N-1; j++) {
-                    int idx = i * (N-1) + j;
-                    setupMatrixRow(A, idx, i, j, N, h);
+            // Construction de la matrice A et du vecteur b
+            for (int i = 1; i < n; i++) {
+                for (int j = 1; j < n; j++) {
+                    int idx = (i-1) * (n-1) + (j-1);
+                    A[idx][idx] = -4.0 / (h*h);
+                    b[idx] = -f[i][j];
+                    
+                    if (i > 1) A[idx][idx - (n-1)] = 1.0 / (h*h);
+                    if (i < n-1) A[idx][idx + (n-1)] = 1.0 / (h*h);
+                    if (j > 1) A[idx][idx - 1] = 1.0 / (h*h);
+                    if (j < n-1) A[idx][idx + 1] = 1.0 / (h*h);
                 }
             }
-            return A;
-        }
-        
-        protected abstract void setupMatrixRow(double[][] A, int idx, int i, int j, int N, double h);
-        
-        protected double[] buildRHS(int N) {
-            double[] b = new double[(N-1) * (N-1)];
-            double h = 1.0 / N;
             
-            for (int i = 0; i < N-1; i++) {
-                for (int j = 0; j < N-1; j++) {
-                    double x = (i + 1) * h;
-                    double y = (j + 1) * h;
-                    b[i * (N-1) + j] = f(x, y);
+            // Résolution du système Ax = b
+            double[] x = gaussElimination(A, b);
+            
+            // Reconstruction de la solution
+            for (int i = 1; i < n; i++) {
+                for (int j = 1; j < n; j++) {
+                    int idx = (i-1) * (n-1) + (j-1);
+                    u[i][j] = x[idx];
                 }
             }
-            return b;
+            
+            return u;
         }
         
-        protected double[] solveLinearSystem(double[][] A, double[] b) {
-            return gaussianElimination(A, b);
-        }
-        
-        private double[] gaussianElimination(double[][] A, double[] b) {
+        private static double[] gaussElimination(double[][] A, double[] b) {
             int n = A.length;
-            double[][] augmented = new double[n][n + 1];
+            double[] x = new double[n];
             
-            // Créer la matrice augmentée
-            for (int i = 0; i < n; i++) {
-                System.arraycopy(A[i], 0, augmented[i], 0, n);
-                augmented[i][n] = b[i];
-            }
-            
-            // Élimination de Gauss
-            for (int i = 0; i < n; i++) {
-                // Pivot partiel
-                int maxRow = i;
-                for (int k = i + 1; k < n; k++) {
-                    if (Math.abs(augmented[k][i]) > Math.abs(augmented[maxRow][i])) {
-                        maxRow = k;
-                    }
-                }
-                
-                // Échanger les lignes
-                double[] temp = augmented[i];
-                augmented[i] = augmented[maxRow];
-                augmented[maxRow] = temp;
-                
-                // Élimination
-                for (int k = i + 1; k < n; k++) {
-                    double factor = augmented[k][i] / augmented[i][i];
-                    for (int j = i; j <= n; j++) {
-                        augmented[k][j] -= factor * augmented[i][j];
+            // Élimination
+            for (int k = 0; k < n-1; k++) {
+                for (int i = k+1; i < n; i++) {
+                    if (Math.abs(A[k][k]) > 1e-10) {
+                        double factor = A[i][k] / A[k][k];
+                        for (int j = k; j < n; j++) {
+                            A[i][j] -= factor * A[k][j];
+                        }
+                        b[i] -= factor * b[k];
                     }
                 }
             }
             
             // Substitution arrière
-            double[] x = new double[n];
-            for (int i = n - 1; i >= 0; i--) {
-                x[i] = augmented[i][n];
-                for (int j = i + 1; j < n; j++) {
-                    x[i] -= augmented[i][j] * x[j];
+            for (int i = n-1; i >= 0; i--) {
+                x[i] = b[i];
+                for (int j = i+1; j < n; j++) {
+                    x[i] -= A[i][j] * x[j];
                 }
-                x[i] /= augmented[i][i];
+                if (Math.abs(A[i][i]) > 1e-10) {
+                    x[i] /= A[i][i];
+                }
             }
             
             return x;
         }
-        
-        protected double calculateError(double[] solution, int N) {
-            double error = 0.0;
-            double h = 1.0 / N;
+    }
+    
+    // Classe pour Gauss-Seidel avec relaxation
+    static class GaussSeidelRelaxation {
+        public static double[][] solve(int n, double h, double omega, int maxIter, double tol) {
+            double[][] u = new double[n+1][n+1];
+            double[][] f = new double[n+1][n+1];
             
-            for (int i = 0; i < N-1; i++) {
-                for (int j = 0; j < N-1; j++) {
-                    double x = (i + 1) * h;
-                    double y = (j + 1) * h;
-                    double numerical = solution[i * (N-1) + j];
-                    double exact = exactSolution(x, y);
-                    error += (numerical - exact) * (numerical - exact);
+            // Calcul de f(x,y)
+            for (int i = 0; i <= n; i++) {
+                for (int j = 0; j <= n; j++) {
+                    double x = i * h;
+                    double y = j * h;
+                    f[i][j] = Math.sin(PI * x) + Math.pow(y, 3);
                 }
             }
-            return Math.sqrt(error * h * h);
+            
+            // Itérations Gauss-Seidel avec relaxation
+            for (int iter = 0; iter < maxIter; iter++) {
+                double maxChange = 0.0;
+                
+                for (int i = 1; i < n; i++) {
+                    for (int j = 1; j < n; j++) {
+                        double oldU = u[i][j];
+                        double newU = (u[i-1][j] + u[i+1][j] + u[i][j-1] + u[i][j+1] + h*h*f[i][j]) / 4.0;
+                        u[i][j] = (1.0 - omega) * oldU + omega * newU;
+                        maxChange = Math.max(maxChange, Math.abs(u[i][j] - oldU));
+                    }
+                }
+                
+                if (maxChange < tol) break;
+            }
+            
+            return u;
         }
     }
     
-    // Solveur pour -u'' + u = f
-    static class EDPSolver1 extends EDPSolver {
-        @Override
-        protected double exactSolution(double x, double y) {
-            return exactSolution1(x, y);
-        }
-        
-        @Override
-        protected void setupMatrixRow(double[][] A, int idx, int i, int j, int N, double h) {
-            double coeff = 1.0 / (h * h);
+    // Classe pour Gauss-Seidel parallélisé
+    static class GaussSeidelParallel {
+        public static double[][] solve(int n, double h, double omega, int maxIter, double tol) {
+            double[][] u = new double[n+1][n+1];
+            double[][] f = new double[n+1][n+1];
             
-            // Point central
-            A[idx][idx] = -4 * coeff + 1.0;
+            // Calcul de f(x,y)
+            for (int i = 0; i <= n; i++) {
+                for (int j = 0; j <= n; j++) {
+                    double x = i * h;
+                    double y = j * h;
+                    f[i][j] = Math.sin(PI * x) + Math.pow(y, 3);
+                }
+            }
             
-            // Voisins
-            if (i > 0) A[idx][idx - (N-1)] = coeff;
-            if (i < N-2) A[idx][idx + (N-1)] = coeff;
-            if (j > 0) A[idx][idx - 1] = coeff;
-            if (j < N-2) A[idx][idx + 1] = coeff;
-        }
-        
-        @Override
-        public Result solve(int N) {
-            double[][] A = buildMatrix(N);
-            double[] b = buildRHS(N);
-            double[] solution = solveLinearSystem(A, b);
-            double error = calculateError(solution, N);
+            ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
             
-            return new Result(solution, error, N);
-        }
-    }
-    
-    // Solveur pour -u'' + u' = f
-    static class EDPSolver2 extends EDPSolver {
-        @Override
-        protected double exactSolution(double x, double y) {
-            return exactSolution2(x, y);
-        }
-        
-        @Override
-        protected void setupMatrixRow(double[][] A, int idx, int i, int j, int N, double h) {
-            double coeff = 1.0 / (h * h);
-            double derivCoeff = 1.0 / (2 * h);
+            // Itérations parallèles
+            for (int iter = 0; iter < maxIter; iter++) {
+                final int currentIter = iter;
+                List<Future<Double>> futures = new ArrayList<>();
+                
+                // Division en chunks pour parallélisation
+                int numThreads = Runtime.getRuntime().availableProcessors();
+                int chunkSize = Math.max(1, (n-1) / numThreads);
+                
+                for (int t = 0; t < numThreads; t++) {
+                    final int startI = Math.max(1, 1 + t * chunkSize);
+                    final int endI = Math.min(n, 1 + (t + 1) * chunkSize);
+                    
+                    futures.add(executor.submit(() -> {
+                        double maxChange = 0.0;
+                        for (int i = startI; i < endI; i++) {
+                            for (int j = 1; j < n; j++) {
+                                double oldU = u[i][j];
+                                double newU = (u[i-1][j] + u[i+1][j] + u[i][j-1] + u[i][j+1] + h*h*f[i][j]) / 4.0;
+                                u[i][j] = (1.0 - omega) * oldU + omega * newU;
+                                maxChange = Math.max(maxChange, Math.abs(u[i][j] - oldU));
+                            }
+                        }
+                        return maxChange;
+                    }));
+                }
+                
+                // Attendre tous les threads et calculer le changement maximum
+                double maxChange = 0.0;
+                try {
+                    for (Future<Double> future : futures) {
+                        maxChange = Math.max(maxChange, future.get());
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                
+                if (maxChange < tol) break;
+            }
             
-            // Point central
-            A[idx][idx] = -4 * coeff;
-            
-            // Voisins pour le Laplacien
-            if (i > 0) A[idx][idx - (N-1)] = coeff;
-            if (i < N-2) A[idx][idx + (N-1)] = coeff;
-            if (j > 0) A[idx][idx - 1] = coeff;
-            if (j < N-2) A[idx][idx + 1] = coeff;
-            
-            // Terme dérivé première (u')
-            if (i < N-2) A[idx][idx + (N-1)] += derivCoeff;
-            if (i > 0) A[idx][idx - (N-1)] -= derivCoeff;
-        }
-        
-        @Override
-        public Result solve(int N) {
-            double[][] A = buildMatrix(N);
-            double[] b = buildRHS(N);
-            double[] solution = solveLinearSystem(A, b);
-            double error = calculateError(solution, N);
-            
-            return new Result(solution, error, N);
+            executor.shutdown();
+            return u;
         }
     }
     
-    // Solveur pour -u'' = f
-    static class EDPSolver3 extends EDPSolver {
-        @Override
-        protected double exactSolution(double x, double y) {
-            return exactSolution3(x, y);
+    // Solution analytique approximative pour comparaison
+    public static double[][] exactSolution(int n, double h) {
+        double[][] exact = new double[n+1][n+1];
+        for (int i = 0; i <= n; i++) {
+            for (int j = 0; j <= n; j++) {
+                double x = i * h;
+                double y = j * h;
+                // Solution approximative basée sur la forme de f
+                exact[i][j] = Math.sin(PI * x) / (PI * PI) + y * y * y * y * y / 20.0;
+            }
         }
-        
-        @Override
-        protected void setupMatrixRow(double[][] A, int idx, int i, int j, int N, double h) {
-            double coeff = 1.0 / (h * h);
-            
-            // Point central
-            A[idx][idx] = -4 * coeff;
-            
-            // Voisins
-            if (i > 0) A[idx][idx - (N-1)] = coeff;
-            if (i < N-2) A[idx][idx + (N-1)] = coeff;
-            if (j > 0) A[idx][idx - 1] = coeff;
-            if (j < N-2) A[idx][idx + 1] = coeff;
-        }
-        
-        @Override
-        public Result solve(int N) {
-            double[][] A = buildMatrix(N);
-            double[] b = buildRHS(N);
-            double[] solution = solveLinearSystem(A, b);
-            double error = calculateError(solution, N);
-            
-            return new Result(solution, error, N);
-        }
+        return exact;
     }
     
-    // Classe pour stocker les résultats
-    static class Result {
-        double[] solution;
-        double error;
-        int N;
+    // Calcul de l'erreur
+    public static double calculateError(double[][] numerical, double[][] exact) {
+        double error = 0.0;
+        int n = numerical.length - 1;
         
-        Result(double[] solution, double error, int N) {
-            this.solution = solution;
-            this.error = error;
-            this.N = N;
+        for (int i = 0; i <= n; i++) {
+            for (int j = 0; j <= n; j++) {
+                error += Math.pow(numerical[i][j] - exact[i][j], 2);
+            }
         }
+        
+        return Math.sqrt(error / ((n+1) * (n+1)));
     }
     
-    // Panel pour afficher la solution
-    class SolutionPanel extends JPanel implements MouseMotionListener {
-        private Result result;
-        private int N;
+    // Calcul de l'ordre de convergence
+    public static double calculateConvergenceOrder(double error1, double error2, double h1, double h2) {
+        return Math.log(error1 / error2) / Math.log(h1 / h2);
+    }
+    
+    // Classe pour la visualisation
+    static class Visualization extends JPanel implements MouseMotionListener {
+        private double[][] data;
+        private String title;
         private double minVal, maxVal;
-        private String mouseInfo = "";
+        private int mouseX, mouseY;
+        private boolean showMousePos = false;
         
-        public SolutionPanel(Result result, int N) {
-            this.result = result;
-            this.N = N;
+        public Visualization(double[][] data, String title) {
+            this.data = data;
+            this.title = title;
             this.addMouseMotionListener(this);
             
-            // Calculer min/max pour la colormap
+            // Trouver min et max pour la normalisation des couleurs
             minVal = Double.MAX_VALUE;
             maxVal = Double.MIN_VALUE;
-            for (double val : result.solution) {
-                minVal = Math.min(minVal, val);
-                maxVal = Math.max(maxVal, val);
+            for (int i = 0; i < data.length; i++) {
+                for (int j = 0; j < data[i].length; j++) {
+                    minVal = Math.min(minVal, data[i][j]);
+                    maxVal = Math.max(maxVal, data[i][j]);
+                }
             }
         }
         
@@ -370,93 +255,98 @@ public class ODEFiniteDifference extends JFrame {
             
             int width = getWidth() - 100;
             int height = getHeight() - 100;
-            int startX = 50;
-            int startY = 50;
+            int n = data.length - 1;
+            
+            double cellWidth = (double) width / n;
+            double cellHeight = (double) height / n;
             
             // Dessiner la grille colorée
-            for (int i = 0; i < N-1; i++) {
-                for (int j = 0; j < N-1; j++) {
-                    double val = result.solution[i * (N-1) + j];
-                    Color color = getColor(val);
-                    
-                    int x = startX + (i * width) / (N-1);
-                    int y = startY + (j * height) / (N-1);
-                    int w = width / (N-1) + 1;
-                    int h = height / (N-1) + 1;
-                    
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    double value = data[i][j];
+                    Color color = getColorForValue(value);
                     g2d.setColor(color);
-                    g2d.fillRect(x, y, w, h);
+                    
+                    int x = 50 + (int)(i * cellWidth);
+                    int y = 50 + (int)((n-1-j) * cellHeight);
+                    
+                    g2d.fillRect(x, y, (int)cellWidth + 1, (int)cellHeight + 1);
                 }
             }
             
-            // Dessiner les axes et labels
+            // Dessiner les axes
             g2d.setColor(Color.BLACK);
-            g2d.drawRect(startX, startY, width, height);
+            g2d.drawRect(50, 50, width, height);
             
-            // Labels
-            g2d.setFont(new Font("Arial", Font.BOLD, 12));
-            g2d.drawString("x", startX + width + 5, startY + height/2);
-            g2d.drawString("y", startX + width/2, startY - 5);
+            // Titre
+            g2d.setFont(new Font("Arial", Font.BOLD, 16));
+            FontMetrics fm = g2d.getFontMetrics();
+            int titleWidth = fm.stringWidth(title);
+            g2d.drawString(title, (getWidth() - titleWidth) / 2, 30);
             
-            // Colorbar
-            drawColorbar(g2d, startX + width + 20, startY, 20, height);
+            // Échelle de couleurs
+            drawColorScale(g2d, getWidth() - 40, 50, 20, height);
             
-            // Informations
-            g2d.drawString(String.format("Erreur: %.6e", result.error), 10, 20);
-            g2d.drawString(mouseInfo, 10, getHeight() - 20);
+            // Afficher la valeur au pointeur
+            if (showMousePos) {
+                int gridX = (int)((mouseX - 50) / cellWidth);
+                int gridY = n - 1 - (int)((mouseY - 50) / cellHeight);
+                
+                if (gridX >= 0 && gridX < n && gridY >= 0 && gridY < n) {
+                    double value = data[gridX][gridY];
+                    String valueText = String.format("(%.2f, %.2f): %.4f", 
+                        gridX * (1.0/n), gridY * (1.0/n), value);
+                    
+                    g2d.setColor(Color.WHITE);
+                    g2d.fillRect(mouseX + 5, mouseY - 20, 150, 20);
+                    g2d.setColor(Color.BLACK);
+                    g2d.drawString(valueText, mouseX + 8, mouseY - 5);
+                }
+            }
         }
         
-        private Color getColor(double val) {
-            double normalized = (val - minVal) / (maxVal - minVal);
-            normalized = Math.max(0, Math.min(1, normalized));
+        private Color getColorForValue(double value) {
+            double normalized = (value - minVal) / (maxVal - minVal);
             
-            // Colormap bleu -> rouge
-            float r = (float) normalized;
-            float g = 0.5f;
-            float b = (float) (1 - normalized);
-            
-            return new Color(r, g, b);
+            // Palette de couleurs : bleu -> vert -> jaune -> rouge
+            if (normalized < 0.25) {
+                float ratio = (float)(normalized / 0.25);
+                return new Color(0, (int)(255 * ratio), 255);
+            } else if (normalized < 0.5) {
+                float ratio = (float)((normalized - 0.25) / 0.25);
+                return new Color(0, 255, (int)(255 * (1 - ratio)));
+            } else if (normalized < 0.75) {
+                float ratio = (float)((normalized - 0.5) / 0.25);
+                return new Color((int)(255 * ratio), 255, 0);
+            } else {
+                float ratio = (float)((normalized - 0.75) / 0.25);
+                return new Color(255, (int)(255 * (1 - ratio)), 0);
+            }
         }
         
-        private void drawColorbar(Graphics2D g2d, int x, int y, int w, int h) {
-            for (int i = 0; i < h; i++) {
-                double val = maxVal - (maxVal - minVal) * i / h;
-                Color color = getColor(val);
+        private void drawColorScale(Graphics2D g2d, int x, int y, int width, int height) {
+            for (int i = 0; i < height; i++) {
+                double value = minVal + (maxVal - minVal) * (1.0 - (double)i / height);
+                Color color = getColorForValue(value);
                 g2d.setColor(color);
-                g2d.fillRect(x, y + i, w, 1);
+                g2d.drawLine(x, y + i, x + width, y + i);
             }
             
             g2d.setColor(Color.BLACK);
-            g2d.drawRect(x, y, w, h);
+            g2d.drawRect(x, y, width, height);
             
-            // Labels de la colorbar
+            // Labels
             g2d.setFont(new Font("Arial", Font.PLAIN, 10));
-            g2d.drawString(String.format("%.3f", maxVal), x + w + 5, y + 10);
-            g2d.drawString(String.format("%.3f", (maxVal + minVal)/2), x + w + 5, y + h/2);
-            g2d.drawString(String.format("%.3f", minVal), x + w + 5, y + h - 5);
+            g2d.drawString(String.format("%.3f", maxVal), x + width + 5, y + 10);
+            g2d.drawString(String.format("%.3f", minVal), x + width + 5, y + height);
         }
         
         @Override
         public void mouseMoved(MouseEvent e) {
-            int width = getWidth() - 100;
-            int height = getHeight() - 100;
-            int startX = 50;
-            int startY = 50;
-            
-            if (e.getX() >= startX && e.getX() <= startX + width && 
-                e.getY() >= startY && e.getY() <= startY + height) {
-                
-                int i = ((e.getX() - startX) * (N-1)) / width;
-                int j = ((e.getY() - startY) * (N-1)) / height;
-                
-                if (i >= 0 && i < N-1 && j >= 0 && j < N-1) {
-                    double val = result.solution[i * (N-1) + j];
-                    double x = (double)(i + 1) / N;
-                    double y = (double)(j + 1) / N;
-                    mouseInfo = String.format("Position: (%.3f, %.3f), Valeur: %.6f", x, y, val);
-                    repaint();
-                }
-            }
+            mouseX = e.getX();
+            mouseY = e.getY();
+            showMousePos = true;
+            repaint();
         }
         
         @Override
@@ -465,28 +355,106 @@ public class ODEFiniteDifference extends JFrame {
         }
     }
     
-    // Panel pour les courbes de convergence
-    class ConvergencePlotPanel extends JPanel {
-        private EDPSolver solver1, solver2, solver3;
-        private int[] meshSizes;
-        private List<Double> errors1, errors2, errors3;
-        
-        public ConvergencePlotPanel(EDPSolver solver1, EDPSolver solver2, EDPSolver solver3, int[] meshSizes) {
-            this.solver1 = solver1;
-            this.solver2 = solver2;
-            this.solver3 = solver3;
-            this.meshSizes = meshSizes;
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            // Paramètres
+            int[] meshSizes = {10, 20, 40/*, 80, 160, 320, 640*/};
+            double omega = 1.2; // Facteur de relaxation
+            int maxIter = 10000;
+            double tol = 1e-8;
             
-            // Calculer les erreurs
-            errors1 = new ArrayList<>();
-            errors2 = new ArrayList<>();
-            errors3 = new ArrayList<>();
+            List<Double> errors = new ArrayList<>();
+            List<Double> convergenceOrders = new ArrayList<>();
             
-            for (int N : meshSizes) {
-                errors1.add(solver1.solve(N).error);
-                errors2.add(solver2.solve(N).error);
-                errors3.add(solver3.solve(N).error);
+            System.out.println("Résolution de -u'' = sin(πx) + y³");
+            System.out.println("=====================================");
+            
+            JFrame mainFrame = new JFrame("Résolution d'Équation Différentielle 2D");
+            mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            mainFrame.setLayout(new GridLayout(2, 2));
+            
+            double previousError = 0;
+            double previousH = 0;
+            
+            for (int meshSize : meshSizes) {
+                double h = 1.0 / meshSize;
+                
+                System.out.printf("\nMaillage %dx%d (h = %.6f):\n", meshSize, meshSize, h);
+                
+                // Résolution avec les trois méthodes
+                long startTime = System.currentTimeMillis();
+                double[][] directSol = DirectMethod.solve(meshSize, h);
+                long directTime = System.currentTimeMillis() - startTime;
+                
+                startTime = System.currentTimeMillis();
+                double[][] gsRelaxSol = GaussSeidelRelaxation.solve(meshSize, h, omega, maxIter, tol);
+                long gsRelaxTime = System.currentTimeMillis() - startTime;
+                
+                startTime = System.currentTimeMillis();
+                double[][] gsParallelSol = GaussSeidelParallel.solve(meshSize, h, omega, maxIter, tol);
+                long gsParallelTime = System.currentTimeMillis() - startTime;
+                
+                // Solution exacte
+                double[][] exactSol = exactSolution(meshSize, h);
+                
+                // Calcul des erreurs
+                double errorDirect = calculateError(directSol, exactSol);
+                double errorGSRelax = calculateError(gsRelaxSol, exactSol);
+                double errorGSParallel = calculateError(gsParallelSol, exactSol);
+                
+                System.out.printf("Méthode directe: Erreur = %.6e, Temps = %d ms\n", errorDirect, directTime);
+                System.out.printf("Gauss-Seidel + Relaxation: Erreur = %.6e, Temps = %d ms\n", errorGSRelax, gsRelaxTime);
+                System.out.printf("Gauss-Seidel Parallèle: Erreur = %.6e, Temps = %d ms\n", errorGSParallel, gsParallelTime);
+                
+                errors.add(errorDirect);
+                
+                // Calcul de l'ordre de convergence
+                if (previousError > 0) {
+                    double order = calculateConvergenceOrder(previousError, errorDirect, previousH, h);
+                    convergenceOrders.add(order);
+                    System.out.printf("Ordre de convergence: %.2f\n", order);
+                }
+                
+                previousError = errorDirect;
+                previousH = h;
+                
+                // Visualisation pour certaines tailles de maillage
+                if (meshSize == 40) {
+                    mainFrame.add(new Visualization(exactSol, "Solution Exacte (40x40)"));
+                    mainFrame.add(new Visualization(directSol, "Méthode Directe (40x40)"));
+                    mainFrame.add(new Visualization(gsRelaxSol, "Gauss-Seidel Relaxation (40x40)"));
+                    mainFrame.add(new Visualization(gsParallelSol, "Gauss-Seidel Parallèle (40x40)"));
+                }
             }
+            
+            // Affichage du graphique de convergence
+            System.out.println("\nOrdres de convergence moyens:");
+            double avgOrder = convergenceOrders.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+            System.out.printf("Ordre moyen: %.2f\n", avgOrder);
+            
+            // Fenêtre principale
+            mainFrame.setSize(1200, 800);
+            mainFrame.setLocationRelativeTo(null);
+            mainFrame.setVisible(true);
+            
+            // Graphique de l'évolution de l'erreur
+            JFrame errorFrame = new JFrame("Évolution de l'Erreur");
+            errorFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            errorFrame.add(new ErrorPlot(meshSizes, errors));
+            errorFrame.setSize(600, 400);
+            errorFrame.setLocationRelativeTo(null);
+            errorFrame.setVisible(true);
+        });
+    }
+    
+    // Classe pour tracer l'évolution de l'erreur
+    static class ErrorPlot extends JPanel {
+        private int[] meshSizes;
+        private List<Double> errors;
+        
+        public ErrorPlot(int[] meshSizes, List<Double> errors) {
+            this.meshSizes = meshSizes;
+            this.errors = errors;
         }
         
         @Override
@@ -497,70 +465,60 @@ public class ODEFiniteDifference extends JFrame {
             
             int width = getWidth() - 100;
             int height = getHeight() - 100;
-            int startX = 50;
-            int startY = 50;
             
             // Axes
             g2d.setColor(Color.BLACK);
-            g2d.drawLine(startX, startY + height, startX + width, startY + height);
-            g2d.drawLine(startX, startY, startX, startY + height);
+            g2d.drawLine(50, height + 50, width + 50, height + 50); // X
+            g2d.drawLine(50, 50, 50, height + 50); // Y
             
-            // Échelles logarithmiques
-            double minH = 1.0 / meshSizes[meshSizes.length - 1];
-            double maxH = 1.0 / meshSizes[0];
-            double minError = Math.min(Math.min(getMinError(errors1), getMinError(errors2)), getMinError(errors3));
-            double maxError = Math.max(Math.max(getMaxError(errors1), getMaxError(errors2)), getMaxError(errors3));
-            
-            // Dessiner les courbes
-            drawCurve(g2d, errors1, Color.RED, "Eq1: -u'' + u = f", startX, startY, width, height, minH, maxH, minError, maxError);
-            drawCurve(g2d, errors2, Color.BLUE, "Eq2: -u'' + u' = f", startX, startY, width, height, minH, maxH, minError, maxError);
-            drawCurve(g2d, errors3, Color.GREEN, "Eq3: -u'' = f", startX, startY, width, height, minH, maxH, minError, maxError);
-            
-            // Légende
-            g2d.setColor(Color.RED);
-            g2d.drawString("Eq1: -u'' + u = f", startX + 10, startY + 20);
-            g2d.setColor(Color.BLUE);
-            g2d.drawString("Eq2: -u'' + u' = f", startX + 10, startY + 40);
-            g2d.setColor(Color.GREEN);
-            g2d.drawString("Eq3: -u'' = f", startX + 10, startY + 60);
+            // Titre
+            g2d.setFont(new Font("Arial", Font.BOLD, 16));
+            FontMetrics fm = g2d.getFontMetrics();
+            String title = "Évolution de l'Erreur en fonction du Nombre de Mailles";
+            int titleWidth = fm.stringWidth(title);
+            g2d.drawString(title, (getWidth() - titleWidth) / 2, 30);
             
             // Labels des axes
-            g2d.setColor(Color.BLACK);
-            g2d.drawString("h (pas de maillage)", startX + width/2, startY + height + 30);
+            g2d.setFont(new Font("Arial", Font.PLAIN, 12));
+            g2d.drawString("Nombre de mailles", width/2, height + 80);
             
-            // Rotation pour l'axe Y
             g2d.rotate(-Math.PI/2);
-            g2d.drawString("Erreur L2", -(startY + height/2), 20);
+            g2d.drawString("Erreur (log)", -height/2 - 50, 20);
             g2d.rotate(Math.PI/2);
-        }
-        
-        private void drawCurve(Graphics2D g2d, List<Double> errors, Color color, String label, 
-                              int startX, int startY, int width, int height, 
-                              double minH, double maxH, double minError, double maxError) {
-            g2d.setColor(color);
             
-            for (int i = 0; i < errors.size() - 1; i++) {
-                double h1 = 1.0 / meshSizes[i];
-                double h2 = 1.0 / meshSizes[i + 1];
-                double error1 = errors.get(i);
-                double error2 = errors.get(i + 1);
+            if (errors.isEmpty()) return;
+            
+            // Échelle logarithmique
+            double minError = errors.stream().mapToDouble(Double::doubleValue).min().orElse(1e-10);
+            double maxError = errors.stream().mapToDouble(Double::doubleValue).max().orElse(1.0);
+            
+            // Tracer les points et les lignes
+            g2d.setColor(Color.BLUE);
+            g2d.setStroke(new BasicStroke(2));
+            
+            for (int i = 0; i < Math.min(meshSizes.length, errors.size()); i++) {
+                double x = 50 + (double)width * i / (meshSizes.length - 1);
+                double logError = Math.log10(errors.get(i));
+                double logMin = Math.log10(minError);
+                double logMax = Math.log10(maxError);
+                double y = 50 + height - (double)height * (logError - logMin) / (logMax - logMin);
                 
-                int x1 = startX + (int) ((Math.log(h1) - Math.log(minH)) * width / (Math.log(maxH) - Math.log(minH)));
-                int y1 = startY + height - (int) ((Math.log(error1) - Math.log(minError)) * height / (Math.log(maxError) - Math.log(minError)));
-                int x2 = startX + (int) ((Math.log(h2) - Math.log(minH)) * width / (Math.log(maxH) - Math.log(minH)));
-                int y2 = startY + height - (int) ((Math.log(error2) - Math.log(minError)) * height / (Math.log(maxError) - Math.log(minError)));
+                // Point
+                g2d.fillOval((int)x - 3, (int)y - 3, 6, 6);
                 
-                g2d.drawLine(x1, y1, x2, y2);
-                g2d.fillOval(x1 - 2, y1 - 2, 4, 4);
+                // Ligne vers le point suivant
+                if (i < Math.min(meshSizes.length, errors.size()) - 1) {
+                    double nextX = 50 + (double)width * (i + 1) / (meshSizes.length - 1);
+                    double nextLogError = Math.log10(errors.get(i + 1));
+                    double nextY = 50 + height - (double)height * (nextLogError - logMin) / (logMax - logMin);
+                    g2d.drawLine((int)x, (int)y, (int)nextX, (int)nextY);
+                }
+                
+                // Label
+                g2d.setColor(Color.BLACK);
+                g2d.drawString(String.valueOf(meshSizes[i]), (int)x - 10, height + 65);
+                g2d.setColor(Color.BLUE);
             }
-        }
-        
-        private double getMinError(List<Double> errors) {
-            return errors.stream().mapToDouble(Double::doubleValue).min().orElse(1e-10);
-        }
-        
-        private double getMaxError(List<Double> errors) {
-            return errors.stream().mapToDouble(Double::doubleValue).max().orElse(1.0);
         }
     }
 }
