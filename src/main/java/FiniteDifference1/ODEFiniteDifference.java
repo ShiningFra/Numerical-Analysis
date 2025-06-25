@@ -1,49 +1,49 @@
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
 package FiniteDifference1;
 
+/**
+ *
+ * @author Roddier
+ */
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.*;
 import java.util.*;
 import java.util.List;
-import java.util.stream.Collectors;
-
 
 public class ODEFiniteDifference {
-
-    // Interface pour la solution exacte u(x)
-    interface UValueProvider {
-        double getValue(double x); // u(x)
-        double getFirstDerivative(double x); // u'(x)
-        double getSecondDerivative(double x); // u''(x)
-        String getName(); // Nom de u(x), ex: "sin(πx)"
+    
+    // Interface pour les fonctions f(x)
+    interface Function {
+        double apply(double x);
+        String getName();
     }
-
-    // Implémentations de UValueProvider
-    static class USinPiX implements UValueProvider {
-        public double getValue(double x) { return Math.sin(Math.PI * x); }
-        public double getFirstDerivative(double x) { return Math.PI * Math.cos(Math.PI * x); }
-        public double getSecondDerivative(double x) { return -Math.PI * Math.PI * Math.sin(Math.PI * x); }
-        public String getName() { return "u(x) = sin(πx)"; }
+    
+    // Implémentations des fonctions
+    static class SinFunction implements Function {
+        public double apply(double x) { return Math.sin(Math.PI * x); }
+        public String getName() { return "sin(πx)"; }
     }
-
-    static class UXCube implements UValueProvider {
-        public double getValue(double x) { return x * x * x; }
-        public double getFirstDerivative(double x) { return 3 * x * x; }
-        public double getSecondDerivative(double x) { return 6 * x; }
-        public String getName() { return "u(x) = x³"; }
+    
+    static class CubicFunction implements Function {
+        public double apply(double x) { return x * x * x; }
+        public String getName() { return "x³"; }
     }
-
+    
     // Types d'équations différentielles
     enum EquationType {
         TYPE1("-u'' + u = f"),
         TYPE2("-u'' + u' = f"),
         TYPE3("-u'' = f");
-
+        
         private final String description;
         EquationType(String description) { this.description = description; }
         public String getDescription() { return description; }
     }
-
+    
     // Classe pour stocker les résultats
     static class Solution {
         double[] x;
@@ -52,477 +52,391 @@ public class ODEFiniteDifference {
         double error;
         int n;
         EquationType type;
-        UValueProvider exactSolution;
-
-        Solution(double[] x, double[] numerical, double[] analytical, double error, int n, EquationType type, UValueProvider exactSolution) {
+        Function function;
+        
+        Solution(double[] x, double[] numerical, double[] analytical, double error, int n, EquationType type, Function function) {
             this.x = x;
             this.numerical = numerical;
             this.analytical = analytical;
             this.error = error;
             this.n = n;
             this.type = type;
-            this.exactSolution = exactSolution;
+            this.function = function;
         }
     }
-
+    
+    // Résolution de système tridiagonal
     private static double[] solveTridiagonal(double[] a, double[] b, double[] c, double[] d) {
-        int n_eq = b.length;
-        if (n_eq == 0) return new double[0];
-        double[] cp = new double[n_eq];
-        double[] dp = new double[n_eq];
-        double[] x_sol = new double[n_eq];
-
+        int n = b.length;
+        double[] cp = new double[n];
+        double[] dp = new double[n];
+        double[] x = new double[n];
+        
         cp[0] = c[0] / b[0];
         dp[0] = d[0] / b[0];
-
-        for (int i = 1; i < n_eq; i++) {
+        
+        for (int i = 1; i < n; i++) {
             double denom = b[i] - a[i] * cp[i-1];
             cp[i] = c[i] / denom;
             dp[i] = (d[i] - a[i] * dp[i-1]) / denom;
         }
-
-        x_sol[n_eq-1] = dp[n_eq-1];
-        for (int i = n_eq-2; i >= 0; i--) {
-            x_sol[i] = dp[i] - cp[i] * x_sol[i+1];
+        
+        x[n-1] = dp[n-1];
+        for (int i = n-2; i >= 0; i--) {
+            x[i] = dp[i] - cp[i] * x[i+1];
         }
-
-        return x_sol;
+        
+        return x;
     }
-
-    private static double getAnalyticalSolutionValue(double x_coord, UValueProvider uExactSource, EquationType type, double u0, double u1) {
-        if (type == EquationType.TYPE3) {
-            double uExactValAt0 = uExactSource.getValue(0.0);
-            double uExactValAt1 = uExactSource.getValue(1.0);
-            double c0 = u0 - uExactValAt0;
-            double c1 = u1 - uExactValAt1 - c0;
-            return uExactSource.getValue(x_coord) + c1 * x_coord + c0;
-        } else {
-            System.err.println("Avertissement: la solution analytique pour " + type +
-                    " suppose que u0/u1 correspondent aux valeurs de uExactSource aux bords.");
-            return uExactSource.getValue(x_coord);
+    
+    // Solutions analytiques
+    private static double getAnalyticalSolution(double x, EquationType type, Function function) {
+        if (function instanceof SinFunction) {
+            switch (type) {
+                case TYPE1: // -u'' + u = sin(πx)
+                    return Math.sin(Math.PI * x) / (1 + Math.PI * Math.PI);
+                case TYPE2: // -u'' + u' = sin(πx)
+                    return (Math.sin(Math.PI * x) - Math.PI * Math.cos(Math.PI * x)) / (1 + Math.PI * Math.PI);
+                case TYPE3: // -u'' = sin(πx)
+                    return -Math.sin(Math.PI * x) / (Math.PI * Math.PI);
+            }
+        } else if (function instanceof CubicFunction) {
+            switch (type) {
+                case TYPE1: // -u'' + u = x³
+                    return x * x * x - 6 * x;
+                case TYPE2: // -u'' + u' = x³
+                    return x * x * x - 6 * x + 6;
+                case TYPE3: // -u'' = x³
+                    return -x * x * x * x * x / 20 + x * x * x / 6;
+            }
         }
+        return 0;
     }
-
-    public static Solution solve(int n_intervals, EquationType type, UValueProvider uExact, double u0_bc, double u1_bc) {
-        double h_step = 1.0 / n_intervals;
-        double[] x_nodes = new double[n_intervals+1];
-        for (int i = 0; i <= n_intervals; i++) {
-            x_nodes[i] = i * h_step;
+    
+    // Résolution numérique
+    public static Solution solve(int n, EquationType type, Function function) {
+        double h = 1.0 / n;
+        double[] x = new double[n+1];
+        for (int i = 0; i <= n; i++) {
+            x[i] = i * h;
         }
-
-        if (n_intervals <= 1) {
-            double[] numerical = new double[n_intervals+1];
-            double[] analytical = new double[n_intervals+1];
-            if (n_intervals==0) {
-                if (x_nodes.length > 0) {
-                    numerical[0] = (u0_bc + u1_bc) / 2.0;
-                    analytical[0] = getAnalyticalSolutionValue(x_nodes[0], uExact, type, u0_bc, u1_bc);
-                }
-            } else {
-                numerical[0] = u0_bc;
-                numerical[1] = u1_bc;
-            }
-            for (int i = 0; i <= n_intervals; i++) {
-                if (i < x_nodes.length)
-                    analytical[i] = getAnalyticalSolutionValue(x_nodes[i], uExact, type, u0_bc, u1_bc);
-            }
-            double max_abs_error_base_case = 0;
-            for (int i = 0; i <= n_intervals; i++) {
-                if (i < numerical.length && i < analytical.length) {
-                    double current_abs_error = Math.abs(numerical[i] - analytical[i]);
-                    if (current_abs_error > max_abs_error_base_case) {
-                        max_abs_error_base_case = current_abs_error;
-                    }
-                }
-            }
-            return new Solution(x_nodes, numerical, analytical, max_abs_error_base_case, n_intervals, type, uExact);
-        }
-
-        int n_unknowns = n_intervals - 1;
-        double[] a_sub = new double[n_unknowns];
-        double[] b_diag = new double[n_unknowns];
-        double[] c_sur = new double[n_unknowns];
-        double[] d_rhs = new double[n_unknowns];
-
-        java.util.function.Function<Double, Double> f_provider;
+        
+        // Matrices pour le système Ax = b
+        double[] a = new double[n-1]; // sous-diagonale
+        double[] b = new double[n-1]; // diagonale
+        double[] c = new double[n-1]; // sur-diagonale
+        double[] d = new double[n-1]; // second membre
+        
+        // Construction du système selon le type d'équation
         switch (type) {
-            case TYPE1:
-                f_provider = (x_val) -> -uExact.getSecondDerivative(x_val) + uExact.getValue(x_val);
-                break;
-            case TYPE2:
-                f_provider = (x_val) -> -uExact.getSecondDerivative(x_val) + uExact.getFirstDerivative(x_val);
-                break;
-            case TYPE3:
-            default:
-                f_provider = (x_val) -> -uExact.getSecondDerivative(x_val);
-                break;
-        }
-
-        switch (type) {
-            case TYPE1:
-                for (int i = 0; i < n_unknowns; i++) {
-                    int actual_node_idx = i + 1;
-                    a_sub[i] = -1.0/(h_step*h_step);
-                    b_diag[i] = 2.0/(h_step*h_step) + 1.0;
-                    c_sur[i] = -1.0/(h_step*h_step);
-                    d_rhs[i] = f_provider.apply(x_nodes[actual_node_idx]);
+            case TYPE1: // -u'' + u = f
+                for (int i = 0; i < n-1; i++) {
+                    a[i] = (i > 0) ? -1.0/(h*h) : 0;
+                    b[i] = 2.0/(h*h) + 1.0;
+                    c[i] = (i < n-2) ? -1.0/(h*h) : 0;
+                    d[i] = function.apply(x[i+1]);
                 }
-                d_rhs[0] -= a_sub[0] * u0_bc;
-                if (n_unknowns > 0) a_sub[0] = 0;
-                if (n_unknowns > 1) d_rhs[n_unknowns-1] -= c_sur[n_unknowns-1] * u1_bc;
-                if (n_unknowns > 0) c_sur[n_unknowns-1] = 0;
                 break;
-            case TYPE2:
-                for (int i = 0; i < n_unknowns; i++) {
-                    int actual_node_idx = i + 1;
-                    a_sub[i] = -1.0/(h_step*h_step) - 1.0/(2*h_step);
-                    b_diag[i] = 2.0/(h_step*h_step);
-                    c_sur[i] = -1.0/(h_step*h_step) + 1.0/(2*h_step);
-                    d_rhs[i] = f_provider.apply(x_nodes[actual_node_idx]);
+                
+            case TYPE2: // -u'' + u' = f
+                for (int i = 0; i < n-1; i++) {
+                    a[i] = (i > 0) ? -1.0/(h*h) - 1.0/(2*h) : 0;
+                    b[i] = 2.0/(h*h);
+                    c[i] = (i < n-2) ? -1.0/(h*h) + 1.0/(2*h) : 0;
+                    d[i] = function.apply(x[i+1]);
                 }
-                d_rhs[0] -= a_sub[0] * u0_bc;
-                if (n_unknowns > 0) a_sub[0] = 0;
-                if (n_unknowns > 1) d_rhs[n_unknowns-1] -= c_sur[n_unknowns-1] * u1_bc;
-                if (n_unknowns > 0) c_sur[n_unknowns-1] = 0;
                 break;
-            case TYPE3:
-                for (int i = 0; i < n_unknowns; i++) {
-                    int actual_node_idx = i + 1;
-                    a_sub[i] = -1.0;
-                    b_diag[i] = 2.0;
-                    c_sur[i] = -1.0;
-                    d_rhs[i] = h_step*h_step * f_provider.apply(x_nodes[actual_node_idx]);
+                
+            case TYPE3: // -u'' = f
+                for (int i = 0; i < n-1; i++) {
+                    a[i] = (i > 0) ? -1.0/(h*h) : 0;
+                    b[i] = 2.0/(h*h);
+                    c[i] = (i < n-2) ? -1.0/(h*h) : 0;
+                    d[i] = function.apply(x[i+1]);
                 }
-                d_rhs[0] += u0_bc;
-                if (n_unknowns > 0) a_sub[0] = 0;
-                if (n_unknowns > 1) d_rhs[n_unknowns-1] += u1_bc;
-                else if (n_unknowns == 1) d_rhs[0] += u1_bc;
-                if (n_unknowns > 0) c_sur[n_unknowns-1] = 0;
                 break;
         }
-
-        double[] u_inner = solveTridiagonal(a_sub, b_diag, c_sur, d_rhs);
-
-        double[] numerical = new double[n_intervals+1];
-        double[] analytical = new double[n_intervals+1];
-
-        numerical[0] = u0_bc;
-        numerical[n_intervals] = u1_bc;
-        for (int i = 0; i < u_inner.length; i++) {
-            numerical[i+1] = u_inner[i];
+        
+        // Résolution
+        double[] u_inner = solveTridiagonal(a, b, c, d);
+        
+        // Construction de la solution complète (avec conditions aux limites u(0) = u(1) = 0)
+        double[] numerical = new double[n+1];
+        double[] analytical = new double[n+1];
+        
+        numerical[0] = 0;
+        numerical[n] = 0;
+        for (int i = 1; i < n; i++) {
+            numerical[i] = u_inner[i-1];
         }
-
-        for (int i = 0; i <= n_intervals; i++) {
-            analytical[i] = getAnalyticalSolutionValue(x_nodes[i], uExact, type, u0_bc, u1_bc);
+        
+        // Solution analytique
+        for (int i = 0; i <= n; i++) {
+            analytical[i] = getAnalyticalSolution(x[i], type, function);
         }
-
-        double max_abs_error = 0;
-        for (int i = 0; i <= n_intervals; i++) {
-            double current_abs_error = Math.abs(numerical[i] - analytical[i]);
-            if (current_abs_error > max_abs_error) {
-                max_abs_error = current_abs_error;
-            }
+        
+        // Calcul de l'erreur L2
+        double error = 0;
+        for (int i = 0; i <= n; i++) {
+            error += Math.pow(numerical[i] - analytical[i], 2);
         }
-
-        return new Solution(x_nodes, numerical, analytical, max_abs_error, n_intervals, type, uExact);
+        error = Math.sqrt(error * h);
+        
+        return new Solution(x, numerical, analytical, error, n, type, function);
     }
-
-    public static double calculateConvergenceOrder(double error1, double error2, int n1_intervals, int n2_intervals) {
-        if (n1_intervals == n2_intervals) {
-            if (Math.abs(error1 - error2) < 1e-12) return Double.NaN;
-            return (error1 > error2) ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
-        }
-        if (error1 <= 1e-14 && error2 <= 1e-14) return Double.NaN;
-        if (error2 <= 1e-14) return Double.POSITIVE_INFINITY;
-        if (error1 <= 1e-14) return Double.NEGATIVE_INFINITY;
-
-        double ratio_err = error1 / error2;
-        double ratio_n = (double)n2_intervals / n1_intervals;
-        if (ratio_err <= 0 || ratio_n <=0) return Double.NaN;
-
-        return Math.log(ratio_err) / Math.log(ratio_n);
+    
+    // Calcul de l'ordre de convergence
+    public static double calculateConvergenceOrder(double error1, double error2, int n1, int n2) {
+        return Math.log(error1 / error2) / Math.log((double)n2 / n1);
     }
-
+    
+    // Classe pour la visualisation graphique
     static class GraphPanel extends JPanel {
         private List<Solution> solutions;
-        private boolean showErrorGraph;
-
-        public GraphPanel(List<Solution> solutions, boolean showErrorGraph) {
+        private boolean showError;
+        
+        public GraphPanel(List<Solution> solutions, boolean showError) {
             this.solutions = solutions;
-            this.showErrorGraph = showErrorGraph;
+            this.showError = showError;
             setPreferredSize(new Dimension(800, 600));
             setBackground(Color.WHITE);
         }
-
+        
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             Graphics2D g2 = (Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            int plotWidth = getWidth() - 100;
-            int plotHeight = getHeight() - 100;
+            
+            int width = getWidth() - 100;
+            int height = getHeight() - 100;
             int margin = 50;
-
+            
+            // Axes
             g2.setColor(Color.BLACK);
-            g2.drawLine(margin, plotHeight + margin, plotWidth + margin, plotHeight + margin);
-            g2.drawLine(margin, margin, margin, plotHeight + margin);
-
-            if (showErrorGraph) {
-                drawErrorGraph(g2, margin, plotWidth, plotHeight);
+            g2.drawLine(margin, height + margin, width + margin, height + margin); // x-axis
+            g2.drawLine(margin, margin, margin, height + margin); // y-axis
+            
+            if (showError) {
+                drawErrorGraph(g2, margin, width, height);
             } else {
-                drawSolutionGraph(g2, margin, plotWidth, plotHeight);
+                drawSolutionGraph(g2, margin, width, height);
             }
         }
-
-        private void drawSolutionGraph(Graphics2D g2, int margin, int plotWidth, int plotHeight) {
+        
+        private void drawSolutionGraph(Graphics2D g2, int margin, int width, int height) {
             if (solutions.isEmpty()) return;
-
+            
             Solution sol = solutions.get(0);
-
+            
+            // Trouver les limites
             double minY = Double.MAX_VALUE, maxY = Double.MIN_VALUE;
             for (int i = 0; i < sol.x.length; i++) {
                 minY = Math.min(minY, Math.min(sol.numerical[i], sol.analytical[i]));
                 maxY = Math.max(maxY, Math.max(sol.numerical[i], sol.analytical[i]));
             }
-            if (Math.abs(maxY - minY) < 1e-9) {
-                minY -= 0.5;
-                maxY += 0.5;
-            }
-            double y_range = maxY - minY;
-
+            
+            double range = maxY - minY;
+            if (range == 0) range = 1;
+            
+            // Dessiner la solution analytique
             g2.setColor(Color.BLUE);
             g2.setStroke(new BasicStroke(2));
             for (int i = 0; i < sol.x.length - 1; i++) {
-                int x1 = margin + (int)(sol.x[i] * plotWidth);
-                int y1 = margin + plotHeight - (int)((sol.analytical[i] - minY) / y_range * plotHeight);
-                int x2 = margin + (int)(sol.x[i+1] * plotWidth);
-                int y2 = margin + plotHeight - (int)((sol.analytical[i+1] - minY) / y_range * plotHeight);
+                int x1 = margin + (int)(sol.x[i] * width);
+                int y1 = margin + height - (int)((sol.analytical[i] - minY) / range * height);
+                int x2 = margin + (int)(sol.x[i+1] * width);
+                int y2 = margin + height - (int)((sol.analytical[i+1] - minY) / range * height);
                 g2.drawLine(x1, y1, x2, y2);
             }
-
+            
+            // Dessiner la solution numérique
             g2.setColor(Color.RED);
             g2.setStroke(new BasicStroke(1, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 0, new float[]{5}, 0));
             for (int i = 0; i < sol.x.length - 1; i++) {
-                int x1 = margin + (int)(sol.x[i] * plotWidth);
-                int y1 = margin + plotHeight - (int)((sol.numerical[i] - minY) / y_range * plotHeight);
-                int x2 = margin + (int)(sol.x[i+1] * plotWidth);
-                int y2 = margin + plotHeight - (int)((sol.numerical[i+1] - minY) / y_range * plotHeight);
+                int x1 = margin + (int)(sol.x[i] * width);
+                int y1 = margin + height - (int)((sol.numerical[i] - minY) / range * height);
+                int x2 = margin + (int)(sol.x[i+1] * width);
+                int y2 = margin + height - (int)((sol.numerical[i+1] - minY) / range * height);
                 g2.drawLine(x1, y1, x2, y2);
             }
-
+            
+            // Légende
             g2.setColor(Color.BLACK);
             g2.setFont(new Font("Arial", Font.BOLD, 16));
-            g2.drawString(sol.type.getDescription() + ", Solution exacte u(x): " + sol.exactSolution.getName(), margin, 25); // "Exact u(x)" -> "Solution exacte u(x)"
-            g2.drawString(String.format("N = %d, C.L.: u(0)=%.2f, u(1)=%.2f", sol.n, sol.numerical[0], sol.numerical[sol.n]), margin, 45); // BC -> C.L.
-
+            g2.drawString(sol.type.getDescription() + " avec f = " + sol.function.getName(), margin, 25);
+            g2.drawString("n = " + sol.n, margin, 45);
+            
             g2.setFont(new Font("Arial", Font.PLAIN, 12));
             g2.setColor(Color.BLUE);
-            g2.drawString("— Solution analytique", plotWidth + margin - 150, margin + 20); // "Analytical Solution" -> "Solution analytique"
+            g2.drawString("— Solution analytique", width - 150, margin + 20);
             g2.setColor(Color.RED);
-            g2.drawString("--- Solution numérique", plotWidth + margin - 150, margin + 40); // "Numerical Solution" -> "Solution numérique"
+            g2.drawString("--- Solution numérique", width - 150, margin + 40);
             g2.setColor(Color.BLACK);
-            g2.drawString(String.format("Erreur L∞: %.2e", sol.error), plotWidth + margin - 150, margin + 60); // "L∞ Error" -> "Erreur L∞"
+            g2.drawString(String.format("Erreur L2: %.2e", sol.error), width - 150, margin + 60);
         }
-
-        private void drawErrorGraph(Graphics2D g2, int margin, int plotWidth, int plotHeight) {
-            if (solutions.size() < 2 && (solutions.isEmpty() || solutions.get(0).error <= 1e-18) ) {
-                g2.drawString("Pas assez de données ou erreur trop faible pour le graphique d'erreur.", margin, plotHeight / 2); // Traduit
-                return;
-            }
-            if (solutions.size() == 1 && solutions.get(0).error > 1e-18) {
-                Solution sol = solutions.get(0);
-                g2.setColor(Color.BLUE);
-                int x_pt = margin + plotWidth / 2;
-                int y_pt = margin + plotHeight / 2;
-                g2.fillOval(x_pt - 3, y_pt - 3, 6, 6);
-                g2.drawString(String.format("N=%d, Erreur=%.2e", sol.n, sol.error), x_pt + 5, y_pt + 5); // Error -> Erreur
-                g2.setColor(Color.BLACK);
-                g2.setFont(new Font("Arial", Font.BOLD, 16));
-                g2.drawString("Erreur L∞ pour N=" + sol.n + " - " + sol.type.getDescription(), margin, 25); // L∞ Error -> Erreur L∞
-                g2.drawString("Solution exacte u(x): " + sol.exactSolution.getName(), margin, 45); // Exact Solution -> Solution exacte
-                return;
-            }
-
-            List<Solution> positiveErrorSolutions = solutions.stream()
-                    .filter(s -> s != null && s.error > 1e-18)
-                    .collect(Collectors.toList());
-            if (positiveErrorSolutions.size() < 2) {
-                g2.drawString("Pas assez de points d'erreur positifs pour le graphique log-log.", margin, plotHeight / 2); // Traduit
-                return;
-            }
-
-            double minError = positiveErrorSolutions.stream().mapToDouble(s -> s.error).min().orElse(1e-16);
-            double maxError = positiveErrorSolutions.stream().mapToDouble(s -> s.error).max().orElse(1.0);
-
-            if (Math.abs(maxError - minError) < 1e-9 * Math.abs(maxError)) {
-                minError = maxError / ( (maxError > 1e-15) ? 10 : 1e-1);
-                if (minError == 0 && maxError == 0) {minError = 1e-16; maxError = 1e-15;}
-                else if (minError == 0) minError = maxError * 1e-1;
-                if (minError > maxError) minError = maxError /10;
-                if (minError <=0) minError = 1e-16;
-            }
-
+        
+        private void drawErrorGraph(Graphics2D g2, int margin, int width, int height) {
+            if (solutions.size() < 2) return;
+            
+            double minError = solutions.stream().mapToDouble(s -> s.error).min().orElse(1e-10);
+            double maxError = solutions.stream().mapToDouble(s -> s.error).max().orElse(1);
+            
+            // Échelle logarithmique
             double logMinError = Math.log10(minError);
             double logMaxError = Math.log10(maxError);
-            double logErrorRange = logMaxError - logMinError;
-            if (Math.abs(logErrorRange) < 1e-9) logErrorRange = (logMinError != 0) ? Math.abs(logMinError * 0.1) : 1.0;
-
-            int minN = positiveErrorSolutions.stream().mapToInt(s -> s.n).min().orElse(10);
-            int maxN = positiveErrorSolutions.stream().mapToInt(s -> s.n).max().orElse(1000);
+            double logRange = logMaxError - logMinError;
+            if (logRange == 0) logRange = 1;
+            
+            int minN = solutions.stream().mapToInt(s -> s.n).min().orElse(10);
+            int maxN = solutions.stream().mapToInt(s -> s.n).max().orElse(1000);
             double logMinN = Math.log10(minN);
             double logMaxN = Math.log10(maxN);
             double logNRange = logMaxN - logMinN;
-            if (Math.abs(logNRange) < 1e-9) logNRange = (logMinN !=0) ? Math.abs(logMinN * 0.1) : 1.0;
-
+            
+            // Dessiner les points et les relier
             g2.setColor(Color.BLUE);
             g2.setStroke(new BasicStroke(2));
-
-            Path2D.Double errorPath = new Path2D.Double();
-            Solution firstPositiveErrorSol = positiveErrorSolutions.get(0);
-            double firstX = margin + (int)((Math.log10(firstPositiveErrorSol.n) - logMinN) / logNRange * plotWidth);
-            double firstY = margin + plotHeight - (int)((Math.log10(firstPositiveErrorSol.error) - logMinError) / logErrorRange * plotHeight);
-            errorPath.moveTo(firstX,firstY);
-            g2.fillOval((int)firstX - 3, (int)firstY - 3, 6, 6);
-
-            for (int i = 1; i < positiveErrorSolutions.size(); i++) {
-                Solution s = positiveErrorSolutions.get(i);
-                int x_val = margin + (int)((Math.log10(s.n) - logMinN) / logNRange * plotWidth);
-                int y_val = margin + plotHeight - (int)((Math.log10(s.error) - logMinError) / logErrorRange * plotHeight);
-                errorPath.lineTo(x_val, y_val);
-                g2.fillOval(x_val - 3, y_val - 3, 6, 6);
+            
+            for (int i = 0; i < solutions.size() - 1; i++) {
+                Solution s1 = solutions.get(i);
+                Solution s2 = solutions.get(i + 1);
+                
+                int x1 = margin + (int)((Math.log10(s1.n) - logMinN) / logNRange * width);
+                int y1 = margin + height - (int)((Math.log10(s1.error) - logMinError) / logRange * height);
+                int x2 = margin + (int)((Math.log10(s2.n) - logMinN) / logNRange * width);
+                int y2 = margin + height - (int)((Math.log10(s2.error) - logMinError) / logRange * height);
+                
+                g2.drawLine(x1, y1, x2, y2);
+                g2.fillOval(x1 - 3, y1 - 3, 6, 6);
             }
-            g2.draw(errorPath);
-
+            
+            // Dernier point
+            Solution lastSol = solutions.get(solutions.size() - 1);
+            int lastX = margin + (int)((Math.log10(lastSol.n) - logMinN) / logNRange * width);
+            int lastY = margin + height - (int)((Math.log10(lastSol.error) - logMinError) / logRange * height);
+            g2.fillOval(lastX - 3, lastY - 3, 6, 6);
+            
+            // Titre
             g2.setColor(Color.BLACK);
             g2.setFont(new Font("Arial", Font.BOLD, 16));
-            Solution firstSolForTitle = solutions.get(0);
-            g2.drawString("Évolution de l'erreur L∞ - " + firstSolForTitle.type.getDescription(), margin, 25); // Traduit
-            g2.drawString("Solution exacte u(x): " + firstSolForTitle.exactSolution.getName(), margin, 45); // Traduit
-
+            Solution firstSol = solutions.get(0);
+            g2.drawString("Évolution de l'erreur - " + firstSol.type.getDescription(), margin, 25);
+            g2.drawString("f = " + firstSol.function.getName(), margin, 45);
+            
+            // Labels des axes
             g2.setFont(new Font("Arial", Font.PLAIN, 12));
-            g2.drawString("Nombre d'intervalles N (échelle log)", plotWidth/2 + margin - 100, plotHeight + margin + 30); // Traduit
-
+            g2.drawString("Nombre de mailles (log)", width/2, height + margin + 40);
+            
+            // Rotation pour le label Y
             AffineTransform orig = g2.getTransform();
             g2.rotate(-Math.PI/2);
-            g2.drawString("Erreur L∞ (échelle log)", -(plotHeight/2 + margin + 50 ), margin - 30); // Traduit
+            g2.drawString("Erreur L2 (log)", -height/2 - 50, 20);
             g2.setTransform(orig);
         }
     }
-
+    
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            UValueProvider[] exactSolutions = {new USinPiX(), new UXCube()};
-            EquationType[] types = {EquationType.TYPE3, EquationType.TYPE1, EquationType.TYPE2};
-
-            JFrame mainFrame = new JFrame("Résolveur d'Équations Différentielles 1D (Différences Finies)"); // Traduit
+            // Choix de la fonction et du type d'équation
+            Function[] functions = {new SinFunction(), new CubicFunction()};
+            EquationType[] types = {EquationType.TYPE1, EquationType.TYPE2, EquationType.TYPE3};
+            
+            JFrame mainFrame = new JFrame("Résolveur d'équations différentielles");
             mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             mainFrame.setLayout(new BorderLayout());
-
+            
             JPanel controlPanel = new JPanel();
-            JComboBox<UValueProvider> exactSolutionCombo = new JComboBox<>(exactSolutions);
+            JComboBox<Function> functionCombo = new JComboBox<>(functions);
             JComboBox<EquationType> typeCombo = new JComboBox<>(types);
-            JButton solveButton = new JButton("Résoudre et Afficher Solution"); // Traduit
-            JButton errorButton = new JButton("Afficher Courbe d'Erreur");    // Traduit
-
-            exactSolutionCombo.setRenderer(new DefaultListCellRenderer() {
+            JButton solveButton = new JButton("Résoudre");
+            JButton errorButton = new JButton("Courbe d'erreur");
+            
+            functionCombo.setRenderer(new DefaultListCellRenderer() {
                 @Override
                 public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                     super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                    if (value instanceof UValueProvider) {
-                        setText(((UValueProvider) value).getName());
+                    if (value instanceof Function) {
+                        setText(((Function) value).getName());
                     }
                     return this;
                 }
             });
-            typeCombo.setRenderer(new DefaultListCellRenderer() {
-                @Override
-                public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                    super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                    if (value instanceof EquationType) {
-                        setText(((EquationType) value).getDescription());
-                    }
-                    return this;
-                }
-            });
-
-            controlPanel.add(new JLabel("Solution exacte u(x):")); // Traduit
-            controlPanel.add(exactSolutionCombo);
-            controlPanel.add(new JLabel("Type d'équation:"));    // Traduit
+            
+            controlPanel.add(new JLabel("Fonction:"));
+            controlPanel.add(functionCombo);
+            controlPanel.add(new JLabel("Équation:"));
             controlPanel.add(typeCombo);
             controlPanel.add(solveButton);
             controlPanel.add(errorButton);
-
+            
             JTabbedPane tabbedPane = new JTabbedPane();
             mainFrame.add(controlPanel, BorderLayout.NORTH);
             mainFrame.add(tabbedPane, BorderLayout.CENTER);
-
-            final double u0_bc_val = 0.0;
-            final double u1_bc_val = 1.0;
-
+            
             solveButton.addActionListener(e -> {
-                UValueProvider selectedExactSolution = (UValueProvider) exactSolutionCombo.getSelectedItem();
+                Function selectedFunction = (Function) functionCombo.getSelectedItem();
                 EquationType selectedType = (EquationType) typeCombo.getSelectedItem();
-
+                
                 tabbedPane.removeAll();
-
-                int[] meshSizesForDisplay = {10, 20, 40, 80, 160, 320};
-                System.out.println("\n=== Solutions pour " + selectedType.getDescription() +
-                        " avec Solution Exacte u(x) = " + selectedExactSolution.getName() + " ==="); // Traduit
-                System.out.println("Conditions aux Limites: u(0)=" + u0_bc_val + ", u(1)=" + u1_bc_val); // Traduit
-
-                for (int n_val_loop : meshSizesForDisplay) {
-                    Solution sol = solve(n_val_loop, selectedType, selectedExactSolution, u0_bc_val, u1_bc_val);
-                    GraphPanel panel = new GraphPanel(Arrays.asList(sol), false);
-                    tabbedPane.addTab("Solution (N = " + n_val_loop + ")", panel);
-                    System.out.printf("N = %d: Erreur L∞ = %.6e\n", n_val_loop, sol.error); // Traduit
-                }
-            });
-
-            errorButton.addActionListener(e -> {
-                UValueProvider selectedExactSolution = (UValueProvider) exactSolutionCombo.getSelectedItem();
-                EquationType selectedType = (EquationType) typeCombo.getSelectedItem();
-
-                int[] meshSizesForErrorCurve = {10, 20, 40, 80, 160, 320};
-                List<Solution> solutionsList = new ArrayList<>();
-
-                System.out.println("\n=== Calcul de la Courbe d'Erreur pour " + selectedType.getDescription() +
-                        " avec Solution Exacte u(x) = " + selectedExactSolution.getName() + " ==="); // Traduit
-                System.out.println("Conditions aux Limites: u(0)=" + u0_bc_val + ", u(1)=" + u1_bc_val); // Traduit
-
-                Solution previousSolution = null;
-                for (int n_val_loop : meshSizesForErrorCurve) {
-                    Solution currentSolution = solve(n_val_loop, selectedType, selectedExactSolution, u0_bc_val, u1_bc_val);
-                    solutionsList.add(currentSolution);
-
-                    System.out.printf("N = %d: Erreur L∞ = %.6e\n", n_val_loop, currentSolution.error); // Traduit
-
-                    if (previousSolution != null) {
-                        double order = calculateConvergenceOrder(previousSolution.error, currentSolution.error,
-                                previousSolution.n, currentSolution.n);
-                        System.out.printf("Ordre de Convergence (entre N=%d et N=%d): %.2f\n", // Traduit
-                                previousSolution.n, currentSolution.n, order);
+                
+                // Résolution pour différents nombres de mailles
+                int[] meshSizes = {10, 20, 40, 80, 160, 320, 640};
+                List<Solution> solutions = new ArrayList<>();
+                
+                System.out.println("\n=== Résultats pour " + selectedType.getDescription() + " avec f = " + selectedFunction.getName() + " ===");
+                
+                for (int n : meshSizes) {
+                    Solution sol = solve(n, selectedType, selectedFunction);
+                    solutions.add(sol);
+                    
+                    System.out.printf("n = %d: Erreur L2 = %.6e\n", n, sol.error);
+                    
+                    // Calcul de l'ordre de convergence
+                    if (solutions.size() > 1) {
+                        Solution prevSol = solutions.get(solutions.size() - 2);
+                        double order = calculateConvergenceOrder(prevSol.error, sol.error, prevSol.n, sol.n);
+                        System.out.printf("Ordre de convergence: %.2f\n", order);
                     }
-                    previousSolution = currentSolution;
+                    
+                    // Ajouter un onglet pour chaque solution
+                    GraphPanel panel = new GraphPanel(Arrays.asList(sol), false);
+                    tabbedPane.addTab("n = " + n, panel);
                 }
-
+                
                 System.out.println();
-
-                GraphPanel errorCurvePanel = new GraphPanel(solutionsList, true);
-                JFrame errorFrame = new JFrame("Évolution de l'Erreur L∞"); // Traduit
-                errorFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-                errorFrame.add(errorCurvePanel);
-                errorFrame.pack();
+            });
+            
+            errorButton.addActionListener(e -> {
+                Function selectedFunction = (Function) functionCombo.getSelectedItem();
+                EquationType selectedType = (EquationType) typeCombo.getSelectedItem();
+                
+                // Calcul pour plusieurs tailles de mailles pour la courbe d'erreur
+                int[] meshSizes = {10, 20, 40, 80, 160, 320, 640};
+                List<Solution> errorSolutions = new ArrayList<>();
+                
+                for (int n : meshSizes) {
+                    Solution sol = solve(n, selectedType, selectedFunction);
+                    errorSolutions.add(sol);
+                }
+                
+                GraphPanel errorPanel = new GraphPanel(errorSolutions, true);
+                
+                JFrame errorFrame = new JFrame("Évolution de l'erreur");
+                errorFrame.add(errorPanel);
+                errorFrame.setSize(900, 700);
                 errorFrame.setLocationRelativeTo(mainFrame);
                 errorFrame.setVisible(true);
             });
-
-            mainFrame.pack();
+            
+            mainFrame.setSize(1000, 800);
             mainFrame.setLocationRelativeTo(null);
             mainFrame.setVisible(true);
-
-            exactSolutionCombo.setSelectedIndex(0);
+            
+            // Exemple initial
+            functionCombo.setSelectedIndex(0);
             typeCombo.setSelectedIndex(0);
+            solveButton.doClick();
         });
     }
 }
