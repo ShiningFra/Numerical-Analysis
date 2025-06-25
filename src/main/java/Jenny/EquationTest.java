@@ -14,6 +14,8 @@ public class EquationTest {
         Imat solver = new EquationSolver();
 
         // Lire les cas de test depuis le fichier
+        Integer z = 0;
+        Integer y = 0;
         try (BufferedReader br = new BufferedReader(new FileReader("test_cases.txt"))) {
             String line;
             while ((line = br.readLine()) != null) {
@@ -24,10 +26,11 @@ public class EquationTest {
                 double c = getValueFromFeature(parts[2]);
 
                 System.out.println("Test avec : a = " + a + ", b = " + b + ", c = " + c);
-
+                
                 // Résoudre l'équation
                 try {
                     System.out.println("Début d'un cas de test");
+                    y++;
                     double[] solutions = solver.resoudreEquation(a, b, c);
 
                     // Vérification des solutions
@@ -40,6 +43,7 @@ public class EquationTest {
 
                     // Si aucune solution n'est attendue, vérifier que le discriminant est négatif
                     if (solutions.length == 0) {
+                        z++;
                         Assert.assertTrue("Le discriminant doit être négatif pour " + line, b * b - 4 * a * c < 0);
                     }
                     System.out.println("Fin d'un test");
@@ -47,6 +51,7 @@ public class EquationTest {
                     System.out.println(e);
                 }
             }
+            System.out.println("Sucess rate " + (y - z) + " / " + y);
         } catch (IOException e) {
             e.printStackTrace();
         }

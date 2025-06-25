@@ -32,7 +32,7 @@ public class ODEFiniteVolume extends JFrame {
         System.out.println("Solution exacte: u(x,y) = (1/(2*π²)) * sin(π*x) * sin(π*y)");
         System.out.println();
         
-        int[] nValues = {10, 20, 40, 80};
+        int[] nValues = {10, 20, 40};
         
         for (int n : nValues) {
             System.out.println("--- Résolution avec " + n + "x" + n + " mailles ---");
@@ -194,7 +194,7 @@ public class ODEFiniteVolume extends JFrame {
             }
         }
         
-        return Math.sqrt(error * h * h);
+        return Math.sqrt(error);
     }
     
     // Calcul de l'ordre de convergence
@@ -207,7 +207,7 @@ public class ODEFiniteVolume extends JFrame {
         double h1 = DOMAIN_SIZE / meshSizes.get(size - 2);
         double h2 = DOMAIN_SIZE / meshSizes.get(size - 1);
         
-        return Math.log(e1 / e2) / Math.log(h1 / h2);
+        return Math.sqrt(Math.log(e2) / (2 * Math.log(h2)) * Math.log(e1) / (2 * Math.log(h1)))/* / Math.log(h2 / h1)*/;
     }
     
     // Affichage des résultats graphiques
